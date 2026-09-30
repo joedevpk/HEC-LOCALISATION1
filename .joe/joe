@@ -1,0 +1,1538 @@
+/*
+# HEC Smart Navigator — core schema
+
+## Overview
+Creates the campus data model for the HEC Smart Navigator platform: a hierarchy of
+organizations, campuses, buildings, floors and locations, plus per-user profiles,
+favorites and search history. Campus reference data is publicly readable so the
+public map and visitor mode work without sign-in; personal data is owner-scoped.
+
+## New Tables
+- `profiles` — one row per authenticated user. Columns: id (uuid, = auth.users.id),
+  full_name (text), role (text, default 'STUDENT'), created_at.
+- `campuses` — a physical campus. name, tagline, city, center_lng, center_lat,
+  default_zoom, created_at.
+- `buildings` — buildings on a campus. campus_id, name, code, description,
+  category, color, center_lng, center_lat, floor_count, created_at.
+- `floors` — floors within a building. building_id, level (int), name, sort_order.
+- `locations` — searchable places (rooms, offices, services, points of interest,
+  entrances, facilities). building_id, floor_id, name, code, kind, category,
+  description, capacity, lng, lat, is_accessible, created_at.
+- `campus_events` — events shown to everyone. campus_id, title, description,
+  image_url, starts_at, location_label, organizer.
+- `announcements` — campus announcements. campus_id, title, body, category,
+  created_at.
+- `favorites` — a user's saved locations. user_id (default auth.uid()),
+  location_id, created_at. Unique per (user, location).
+- `search_history` — a user's recent searches. user_id (default auth.uid()),
+  query, created_at.
+
+## Security
+- RLS enabled on every table.
+- Reference data (campuses, buildings, floors, locations, campus_events,
+  announcements) is readable by anon + authenticated (public campus map / visitor
+  mode). No client write policies — this data is operator-managed.
+- profiles: each authenticated user can read/insert/update only their own row.
+- favorites & search_history: owner-scoped CRUD for authenticated users; owner
+  column defaults to auth.uid().
+
+## Notes
+1. Coordinates are stored as plain longitude/latitude doubles for direct use with
+   MapLibre GL JS (GeoJSON order is [lng, lat]).
+2. All ids are uuids. Foreign keys cascade on delete so removing a building removes
+   its floors and locations.
+*/
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name text NOT NULL DEFAULT '',
+  role text NOT NULL DEFAULT 'STUDENT',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS campuses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  tagline text NOT NULL DEFAULT '',
+  city text NOT NULL DEFAULT '',
+  center_lng double precision NOT NULL DEFAULT 15.3,
+  center_lat double precision NOT NULL DEFAULT -4.32,
+  default_zoom double precision NOT NULL DEFAULT 17,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS buildings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  code text NOT NULL DEFAULT '',
+  description text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'academic',
+  color text NOT NULL DEFAULT '#1e5eff',
+  center_lng double precision NOT NULL,
+  center_lat double precision NOT NULL,
+  floor_count int NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS buildings_campus_idx ON buildings(campus_id);
+
+CREATE TABLE IF NOT EXISTS floors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  building_id uuid NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+  level int NOT NULL DEFAULT 0,
+  name text NOT NULL,
+  sort_order int NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS floors_building_idx ON floors(building_id);
+
+CREATE TABLE IF NOT EXISTS locations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  building_id uuid REFERENCES buildings(id) ON DELETE CASCADE,
+  floor_id uuid REFERENCES floors(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  code text NOT NULL DEFAULT '',
+  kind text NOT NULL DEFAULT 'room',
+  category text NOT NULL DEFAULT 'general',
+  description text NOT NULL DEFAULT '',
+  capacity int,
+  lng double precision NOT NULL,
+  lat double precision NOT NULL,
+  is_accessible boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS locations_building_idx ON locations(building_id);
+CREATE INDEX IF NOT EXISTS locations_kind_idx ON locations(kind);
+
+CREATE TABLE IF NOT EXISTS campus_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  image_url text NOT NULL DEFAULT '',
+  starts_at timestamptz NOT NULL DEFAULT now(),
+  location_label text NOT NULL DEFAULT '',
+  organizer text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'GENERAL',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS favorites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  location_id uuid NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, location_id)
+);
+CREATE INDEX IF NOT EXISTS favorites_user_idx ON favorites(user_id);
+
+CREATE TABLE IF NOT EXISTS search_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  query text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS search_history_user_idx ON search_history(user_id);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE buildings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE floors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campus_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
+
+-- Public reference data: readable by everyone
+DROP POLICY IF EXISTS "public_read_campuses" ON campuses;
+CREATE POLICY "public_read_campuses" ON campuses FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "public_read_buildings" ON buildings;
+CREATE POLICY "public_read_buildings" ON buildings FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "public_read_floors" ON floors;
+CREATE POLICY "public_read_floors" ON floors FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "public_read_locations" ON locations;
+CREATE POLICY "public_read_locations" ON locations FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "public_read_events" ON campus_events;
+CREATE POLICY "public_read_events" ON campus_events FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "public_read_announcements" ON announcements;
+CREATE POLICY "public_read_announcements" ON announcements FOR SELECT TO anon, authenticated USING (true);
+
+-- profiles: owner-scoped
+DROP POLICY IF EXISTS "select_own_profile" ON profiles;
+CREATE POLICY "select_own_profile" ON profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+DROP POLICY IF EXISTS "insert_own_profile" ON profiles;
+CREATE POLICY "insert_own_profile" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "update_own_profile" ON profiles;
+CREATE POLICY "update_own_profile" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+-- favorites: owner-scoped
+DROP POLICY IF EXISTS "select_own_favorites" ON favorites;
+CREATE POLICY "select_own_favorites" ON favorites FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "insert_own_favorites" ON favorites;
+CREATE POLICY "insert_own_favorites" ON favorites FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "delete_own_favorites" ON favorites;
+CREATE POLICY "delete_own_favorites" ON favorites FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- search_history: owner-scoped
+DROP POLICY IF EXISTS "select_own_history" ON search_history;
+CREATE POLICY "select_own_history" ON search_history FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "insert_own_history" ON search_history;
+CREATE POLICY "insert_own_history" ON search_history FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "delete_own_history" ON search_history;
+CREATE POLICY "delete_own_history" ON search_history FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+
+/*
+# HEC Smart Navigator — extension schema (settings, notifications, bookings, reports, schedules, QR)
+
+## Overview
+Adds tables for the professional extension of the platform: per-user settings
+(language, theme, accessibility, notification preferences), a notification
+center, room bookings, issue reports, course schedules, and QR code references.
+
+## New Tables
+- `user_settings` — one row per user. language (fr/en/ln), theme (light/dark/
+  system), text_size, high_contrast, reduce_motion, accessible_nav,
+  notif_* boolean prefs, created_at, updated_at.
+- `notifications` — per-user notifications. user_id, type, title, body, is_read,
+  related_id, created_at.
+- `bookings` — room reservation requests. user_id, location_id, date, start_time,
+  end_time, purpose, status (PENDING/APPROVED/REJECTED/CANCELLED), created_at.
+- `reports` — issue reports. user_id, category, description, location_label,
+  status (NEW/IN_PROGRESS/RESOLVED/REJECTED), created_at.
+- `schedules` — course timetable entries. campus_id, course_name, teacher_name,
+  room_id, day_of_week, start_time, end_time. Visible to all.
+- `qr_codes` — QR references for locations. location_id, code (unique),
+  is_active, created_at.
+
+## Security
+- RLS enabled on every table.
+- `schedules` and `qr_codes`: public read (anon + authenticated).
+- `user_settings`, `notifications`, `bookings`, `reports`: owner-scoped CRUD
+  with user_id defaulting to auth.uid().
+
+## Notes
+1. `user_settings` uses ON CONFLICT for upsert — the frontend updates settings
+   by inserting a full row; if it exists, it updates.
+2. Booking conflict prevention is enforced in the frontend by querying
+   existing bookings for the same location/date/time overlap.
+3. All owner-scoped tables cascade on user deletion.
+*/
+
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id uuid PRIMARY KEY DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  language text NOT NULL DEFAULT 'fr',
+  theme text NOT NULL DEFAULT 'system',
+  text_size text NOT NULL DEFAULT 'normal',
+  high_contrast boolean NOT NULL DEFAULT false,
+  reduce_motion boolean NOT NULL DEFAULT false,
+  accessible_nav boolean NOT NULL DEFAULT true,
+  notif_announcements boolean NOT NULL DEFAULT true,
+  notif_events boolean NOT NULL DEFAULT true,
+  notif_room_changes boolean NOT NULL DEFAULT true,
+  notif_courses boolean NOT NULL DEFAULT true,
+  notif_bookings boolean NOT NULL DEFAULT true,
+  notif_maintenance boolean NOT NULL DEFAULT true,
+  notif_alerts boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  type text NOT NULL DEFAULT 'general',
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  is_read boolean NOT NULL DEFAULT false,
+  related_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notif_user_idx ON notifications(user_id);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  location_id uuid NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  date date NOT NULL,
+  start_time text NOT NULL,
+  end_time text NOT NULL,
+  purpose text NOT NULL DEFAULT '',
+  status text NOT NULL DEFAULT 'PENDING',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS bookings_location_idx ON bookings(location_id, date);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  category text NOT NULL DEFAULT 'other',
+  description text NOT NULL DEFAULT '',
+  location_label text NOT NULL DEFAULT '',
+  status text NOT NULL DEFAULT 'NEW',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS reports_status_idx ON reports(status);
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  course_name text NOT NULL,
+  teacher_name text NOT NULL DEFAULT '',
+  room_id uuid REFERENCES locations(id) ON DELETE SET NULL,
+  day_of_week int NOT NULL DEFAULT 1,
+  start_time text NOT NULL,
+  end_time text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS schedules_campus_day_idx ON schedules(campus_id, day_of_week);
+
+CREATE TABLE IF NOT EXISTS qr_codes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id uuid NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  code text UNIQUE NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS qr_location_idx ON qr_codes(location_id);
+
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE qr_codes ENABLE ROW LEVEL SECURITY;
+
+-- user_settings: owner-scoped upsert/read/update
+DROP POLICY IF EXISTS "select_own_settings" ON user_settings;
+CREATE POLICY "select_own_settings" ON user_settings FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "upsert_own_settings" ON user_settings;
+CREATE POLICY "upsert_own_settings" ON user_settings FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "update_own_settings" ON user_settings;
+CREATE POLICY "update_own_settings" ON user_settings FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- notifications: owner-scoped
+DROP POLICY IF EXISTS "select_own_notifs" ON notifications;
+CREATE POLICY "select_own_notifs" ON notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "insert_own_notifs" ON notifications;
+CREATE POLICY "insert_own_notifs" ON notifications FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "update_own_notifs" ON notifications;
+CREATE POLICY "update_own_notifs" ON notifications FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "delete_own_notifs" ON notifications;
+CREATE POLICY "delete_own_notifs" ON notifications FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- bookings: owner-scoped
+DROP POLICY IF EXISTS "select_own_bookings" ON bookings;
+CREATE POLICY "select_own_bookings" ON bookings FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "insert_own_bookings" ON bookings;
+CREATE POLICY "insert_own_bookings" ON bookings FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "update_own_bookings" ON bookings;
+CREATE POLICY "update_own_bookings" ON bookings FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "delete_own_bookings" ON bookings;
+CREATE POLICY "delete_own_bookings" ON bookings FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- reports: owner-scoped
+DROP POLICY IF EXISTS "select_own_reports" ON reports;
+CREATE POLICY "select_own_reports" ON reports FOR SELECT TO authenticated USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "insert_own_reports" ON reports;
+CREATE POLICY "insert_own_reports" ON reports FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "delete_own_reports" ON reports;
+CREATE POLICY "delete_own_reports" ON reports FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- schedules: public read
+DROP POLICY IF EXISTS "public_read_schedules" ON schedules;
+CREATE POLICY "public_read_schedules" ON schedules FOR SELECT TO anon, authenticated USING (true);
+
+-- qr_codes: public read
+DROP POLICY IF EXISTS "public_read_qr" ON qr_codes;
+CREATE POLICY "public_read_qr" ON qr_codes FOR SELECT TO anon, authenticated USING (true);
+
+/*
+# Add avatar_url to profiles
+
+## Overview
+Adds an optional `avatar_url` column to `profiles` so the profile picture
+returned by OAuth providers (Google, GitHub) can be stored. Purely additive —
+does not change any existing column, policy, or table.
+
+## Changes
+- `profiles.avatar_url` (text, nullable, default '') — provider avatar URL,
+  populated on first OAuth sign-in when available.
+*/
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url text NOT NULL DEFAULT '';
+
+
+/*
+# Admin write access to campus data (buildings, floors, locations)
+
+## Overview
+The core schema made campuses/buildings/floors/locations public-read only,
+with "no client write policies — this data is operator-managed" (see the
+original schema migration). This adds scoped write access so that users
+whose `profiles.role` is ADMIN, SUPER_ADMIN or CAMPUS_MANAGER can manage
+buildings, floors and locations (rooms) directly from the app's admin
+panel, instead of needing the Supabase dashboard.
+
+Purely additive: no existing table, column or policy is changed or
+removed. Public read access is untouched.
+
+## Changes
+- New policies on `buildings`, `floors`, `locations`: INSERT/UPDATE/DELETE
+  for authenticated users whose profile role is one of
+  ('ADMIN', 'SUPER_ADMIN', 'CAMPUS_MANAGER').
+- A small helper function `is_campus_admin()` centralizes the role check
+  so the same rule is reused across every policy below.
+*/
+
+CREATE OR REPLACE FUNCTION is_campus_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+      AND profiles.role IN ('ADMIN', 'SUPER_ADMIN', 'CAMPUS_MANAGER')
+  );
+$$;
+
+-- buildings: admin-scoped write
+DROP POLICY IF EXISTS "admin_insert_buildings" ON buildings;
+CREATE POLICY "admin_insert_buildings" ON buildings FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_update_buildings" ON buildings;
+CREATE POLICY "admin_update_buildings" ON buildings FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_delete_buildings" ON buildings;
+CREATE POLICY "admin_delete_buildings" ON buildings FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+-- floors: admin-scoped write
+DROP POLICY IF EXISTS "admin_insert_floors" ON floors;
+CREATE POLICY "admin_insert_floors" ON floors FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_update_floors" ON floors;
+CREATE POLICY "admin_update_floors" ON floors FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_delete_floors" ON floors;
+CREATE POLICY "admin_delete_floors" ON floors FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+-- locations (rooms/salles): admin-scoped write
+DROP POLICY IF EXISTS "admin_insert_locations" ON locations;
+CREATE POLICY "admin_insert_locations" ON locations FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_update_locations" ON locations;
+CREATE POLICY "admin_update_locations" ON locations FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+DROP POLICY IF EXISTS "admin_delete_locations" ON locations;
+CREATE POLICY "admin_delete_locations" ON locations FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+/*
+# Correctif sécurité : auto-promotion de rôle + visibilité admin
+
+## Problème corrigé
+La policy existante `update_own_profile` (et `insert_own_profile`) autorise
+un utilisateur authentifié à modifier sa propre ligne `profiles` sans
+restreindre la colonne `role`. Comme `is_campus_admin()` (migration
+20260826090000) se base uniquement sur cette colonne, n'importe quel compte
+pouvait s'auto-promouvoir ADMIN/SUPER_ADMIN/CAMPUS_MANAGER (par ex. via un
+appel direct au client Supabase depuis la console du navigateur) et ainsi
+contourner toute la protection des bâtiments/salles/lieux.
+
+Par ailleurs, les policies de lecture sur `profiles`, `bookings` et
+`reports` sont strictement "own only" : un compte admin ne pouvait voir
+que sa propre ligne / ses propres réservations / ses propres signalements,
+ce qui rend les statistiques du tableau de bord admin et la modération des
+signalements incorrectes.
+
+Purement additif : aucune table, colonne ou policy existante n'est
+supprimée. L'accès public en lecture n'est pas modifié. Le comportement
+normal (un utilisateur gère son propre profil, ses propres réservations,
+ses propres signalements) reste inchangé — seule l'auto-promotion de rôle
+est bloquée et la visibilité admin est élargie.
+
+## Changements
+1. `is_full_admin()` : nouvelle fonction pour les actions réservées à
+   ADMIN/SUPER_ADMIN uniquement (pas CAMPUS_MANAGER), en particulier la
+   gestion des rôles utilisateurs — conforme à la consigne « un
+   gestionnaire cartographique ne doit pas nécessairement gérer les
+   utilisateurs ».
+2. Trigger `trg_restrict_self_signup_role` : à l'inscription, un compte créé
+   par un client authentifié ne peut prendre qu'un rôle "grand public"
+   (STUDENT, TEACHER, STAFF, VISITOR). Les rôles admin ne peuvent être
+   attribués que depuis le tableau Supabase / par un script d'administration
+   (contexte sans JWT utilisateur), jamais depuis l'application.
+3. Trigger `trg_prevent_role_self_escalation` : bloque toute modification de
+   la colonne `role` d'un profil, sauf si l'auteur de la modification est
+   déjà ADMIN ou SUPER_ADMIN.
+4. Policy `admin_update_any_profile` : permet à un ADMIN/SUPER_ADMIN de
+   modifier le profil d'un autre utilisateur (nécessaire pour une future
+   interface "Gestion des utilisateurs") — le trigger ci-dessus continue de
+   s'appliquer.
+5. Policies `admin_select_all_profiles`, `admin_select_all_bookings`,
+   `admin_select_all_reports` : les rôles ADMIN/SUPER_ADMIN/CAMPUS_MANAGER
+   peuvent lire l'ensemble des profils/réservations/signalements (lecture
+   seule), pour que les statistiques du tableau de bord et la modération
+   des signalements reflètent tout le campus, pas seulement leur propre
+   compte.
+*/
+
+-- 1. Rôle réservé aux administrateurs complets (pas les gestionnaires cartographie)
+CREATE OR REPLACE FUNCTION is_full_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+      AND profiles.role IN ('ADMIN', 'SUPER_ADMIN')
+  );
+$$;
+
+-- 2. À l'inscription (INSERT venant d'un client authentifié), interdire de
+--    s'attribuer directement un rôle privilégié.
+CREATE OR REPLACE FUNCTION restrict_self_signup_role()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL
+     AND NEW.role NOT IN ('STUDENT', 'TEACHER', 'STAFF', 'VISITOR') THEN
+    RAISE EXCEPTION 'Ce rôle ne peut pas être choisi lors de l''inscription.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_restrict_self_signup_role ON profiles;
+CREATE TRIGGER trg_restrict_self_signup_role
+  BEFORE INSERT ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION restrict_self_signup_role();
+
+-- 3. À la modification, interdire de changer la colonne role sauf si
+--    l'auteur de la requête est déjà ADMIN ou SUPER_ADMIN.
+CREATE OR REPLACE FUNCTION prevent_role_self_escalation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid() AND p.role IN ('ADMIN', 'SUPER_ADMIN')
+    ) THEN
+      RAISE EXCEPTION 'Vous n''avez pas la permission de modifier ce rôle.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_role_self_escalation ON profiles;
+CREATE TRIGGER trg_prevent_role_self_escalation
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_role_self_escalation();
+
+-- 4. Un admin complet peut modifier le profil d'un autre utilisateur
+--    (le trigger ci-dessus continue de s'appliquer sur la colonne role).
+DROP POLICY IF EXISTS "admin_update_any_profile" ON profiles;
+CREATE POLICY "admin_update_any_profile" ON profiles FOR UPDATE TO authenticated
+  USING (is_full_admin()) WITH CHECK (is_full_admin());
+
+-- 5. Visibilité admin élargie (lecture seule) pour un tableau de bord et
+--    une modération fidèles à l'ensemble du campus.
+DROP POLICY IF EXISTS "admin_select_all_profiles" ON profiles;
+CREATE POLICY "admin_select_all_profiles" ON profiles FOR SELECT TO authenticated
+  USING (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_select_all_bookings" ON bookings;
+CREATE POLICY "admin_select_all_bookings" ON bookings FOR SELECT TO authenticated
+  USING (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_select_all_reports" ON reports;
+CREATE POLICY "admin_select_all_reports" ON reports FOR SELECT TO authenticated
+  USING (is_campus_admin());
+
+
+/*
+# Reseau de navigation du campus (route_nodes / route_segments)
+
+## Overview
+"Me guider" reposait sur une ligne brisee purement geometrique
+(src/lib/nav.ts::buildRoute), sans jamais suivre les allees reelles du
+campus. Cette migration cree le graphe de navigation reel demande
+(ETAPE 5 du cahier des charges) : des noeuds (entrees, intersections,
+couloirs, escaliers, ascenseurs, rampes, points d'interet) relies par des
+segments, que le moteur de routing (Dijkstra, voir src/lib/nav.ts) peut
+parcourir pour calculer un vrai chemin.
+
+Purement additif : aucune table existante n'est modifiee. Tant qu'aucun
+noeud n'est saisi par l'administration pour un campus donne, l'application
+continue de fonctionner en degradant automatiquement vers l'itineraire
+direct existant (aucune casse).
+
+## Changes
+- Table `route_nodes` : un point du reseau pietons (entree, intersection,
+  couloir, escalier, ascenseur, rampe, POI).
+- Table `route_segments` : une arete entre deux noeuds, avec distance en
+  metres, accessibilite PMR et type de segment.
+- Lecture publique (comme buildings/locations). Ecriture reservee aux
+  roles admin via la fonction `is_campus_admin()` deja definie par
+  20260826090000_admin_campus_write_access.sql.
+- Index sur campus_id et sur les extremites des segments pour des
+  requetes de routing rapides.
+*/
+
+CREATE TABLE IF NOT EXISTS route_nodes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  lng double precision NOT NULL,
+  lat double precision NOT NULL,
+  type text NOT NULL DEFAULT 'intersection'
+    CHECK (type IN ('entrance', 'intersection', 'corridor', 'stairs', 'elevator', 'ramp', 'poi')),
+  label text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS route_segments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campus_id uuid NOT NULL REFERENCES campuses(id) ON DELETE CASCADE,
+  from_node uuid NOT NULL REFERENCES route_nodes(id) ON DELETE CASCADE,
+  to_node uuid NOT NULL REFERENCES route_nodes(id) ON DELETE CASCADE,
+  distance double precision NOT NULL CHECK (distance >= 0),
+  accessible boolean NOT NULL DEFAULT true,
+  segment_type text NOT NULL DEFAULT 'walkway'
+    CHECK (segment_type IN ('walkway', 'corridor', 'stairs', 'ramp', 'elevator')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT route_segments_distinct_nodes CHECK (from_node <> to_node)
+);
+
+CREATE INDEX IF NOT EXISTS route_nodes_campus_idx ON route_nodes (campus_id);
+CREATE INDEX IF NOT EXISTS route_segments_campus_idx ON route_segments (campus_id);
+CREATE INDEX IF NOT EXISTS route_segments_from_idx ON route_segments (from_node);
+CREATE INDEX IF NOT EXISTS route_segments_to_idx ON route_segments (to_node);
+
+ALTER TABLE route_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE route_segments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_read_route_nodes" ON route_nodes;
+CREATE POLICY "public_read_route_nodes" ON route_nodes FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "public_read_route_segments" ON route_segments;
+CREATE POLICY "public_read_route_segments" ON route_segments FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "admin_write_route_nodes" ON route_nodes;
+CREATE POLICY "admin_write_route_nodes" ON route_nodes FOR ALL TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_write_route_segments" ON route_segments;
+CREATE POLICY "admin_write_route_segments" ON route_segments FOR ALL TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+
+
+/*
+# Correctif : mise à jour du rôle bloquée depuis Supabase Studio / SQL editor
+
+## Problème corrigé
+La migration 20260826210000 a introduit `trg_prevent_role_self_escalation`
+pour empêcher un utilisateur connecté de s'auto-promouvoir ADMIN /
+SUPER_ADMIN / CAMPUS_MANAGER. Le trigger bloque toute modification de la
+colonne `role` sauf si :
+
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN','SUPER_ADMIN'))
+
+Cette condition suppose qu'il y a toujours un `auth.uid()` défini. Or,
+quand une modification est faite depuis le Table Editor de Supabase Studio,
+depuis le SQL Editor, ou depuis un script d'administration utilisant la
+clé `service_role` (donc SANS JWT utilisateur), `auth.uid()` vaut NULL.
+Le EXISTS ne trouve alors jamais de ligne et le trigger lève
+systématiquement l'exception "Vous n'avez pas la permission de modifier
+ce rôle.", même quand c'est un administrateur du projet qui agit
+directement dans Supabase.
+
+C'est très probablement la cause exacte du bug rapporté : le rôle du
+compte MAIN a été mis à SUPER_ADMIN depuis Supabase, mais l'UPDATE a été
+silencieusement rejeté par ce trigger, donc `public.profiles.role` n'a
+jamais réellement changé.
+
+Le trigger d'inscription `trg_restrict_self_signup_role` (même migration)
+gérait déjà correctement ce cas en ne s'appliquant que
+`IF auth.uid() IS NOT NULL`. On applique ici la même logique au trigger de
+mise à jour.
+
+## Changement
+`prevent_role_self_escalation()` : le contrôle de permission ne s'applique
+désormais que lorsque la requête provient d'un utilisateur authentifié
+(`auth.uid() IS NOT NULL`), c'est-à-dire depuis l'application cliente.
+Une modification faite sans JWT utilisateur (Studio, SQL Editor, script
+avec la clé service_role) reste donc possible, comme c'est déjà le cas
+pour l'attribution du rôle à l'inscription.
+
+Purement additif / correctif : aucune table, colonne ou policy n'est
+supprimée. La protection contre l'auto-promotion depuis l'application
+reste entièrement active.
+*/
+
+CREATE OR REPLACE FUNCTION prevent_role_self_escalation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    -- auth.uid() IS NULL => requête sans JWT utilisateur (Supabase Studio,
+    -- SQL Editor, script service_role) : on laisse passer, comme pour
+    -- l'inscription (trg_restrict_self_signup_role).
+    IF auth.uid() IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid() AND p.role IN ('ADMIN', 'SUPER_ADMIN')
+    ) THEN
+      RAISE EXCEPTION 'Vous n''avez pas la permission de modifier ce rôle.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Le trigger existant réutilise automatiquement cette fonction (CREATE OR
+-- REPLACE ci-dessus) ; on le recrée explicitement par sécurité.
+DROP TRIGGER IF EXISTS trg_prevent_role_self_escalation ON profiles;
+CREATE TRIGGER trg_prevent_role_self_escalation
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_role_self_escalation();
+
+
+/*
+# Photos des bâtiments (building_images) — PROBLÈME 1 du cahier des charges
+
+## Overview
+Jusqu'ici, un bâtiment n'avait aucune photo réelle : rien dans le schéma
+ne permettait d'associer une image à `buildings`. Cette migration ajoute
+une vraie galerie d'images par bâtiment, stockée dans Supabase Storage
+(jamais en base — seul le chemin/l'URL publique est en base), avec une
+photo principale explicite affichée dans les résultats de recherche.
+
+Purement additif : aucune table existante n'est modifiée. Tant qu'aucune
+image n'est ajoutée pour un bâtiment donné, l'application continue de
+fonctionner exactement comme avant (repli sur l'icône colorée existante).
+
+## Changes
+- Table `building_images` : id, building_id, storage_path, public_url,
+  caption, is_primary, sort_order, created_at — conforme au cahier des
+  charges.
+- Contrainte : une seule photo principale par bâtiment, appliquée par un
+  trigger (`enforce_single_primary_building_image`) plutôt que laissée à
+  la responsabilité du client, pour éviter tout état incohérent même en
+  cas d'écriture concurrente ou d'appel direct à l'API Supabase.
+- Lecture publique (comme buildings/locations). Écriture réservée aux
+  rôles admin via `is_campus_admin()` (déjà définie).
+- Bucket de stockage public `building-images` avec policies dédiées :
+  lecture publique, écriture réservée aux admins de campus. Les fichiers
+  ne sont donc jamais accessibles en écriture à un utilisateur normal,
+  même si le bucket est public en lecture.
+*/
+
+CREATE TABLE IF NOT EXISTS building_images (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  building_id uuid NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+  storage_path text NOT NULL,
+  public_url text NOT NULL,
+  caption text NOT NULL DEFAULT '',
+  is_primary boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS building_images_building_idx ON building_images (building_id);
+CREATE INDEX IF NOT EXISTS building_images_primary_idx ON building_images (building_id, is_primary);
+
+-- Une seule image principale par bâtiment : quand une image est marquée
+-- is_primary = true, toutes les autres images du même bâtiment sont
+-- automatiquement rétrogradées. Centralisé ici (et non dans le client)
+-- pour rester vrai même en cas d'appel direct à l'API.
+CREATE OR REPLACE FUNCTION enforce_single_primary_building_image()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.is_primary THEN
+    UPDATE building_images
+    SET is_primary = false
+    WHERE building_id = NEW.building_id
+      AND id <> NEW.id
+      AND is_primary = true;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_single_primary_building_image ON building_images;
+CREATE TRIGGER trg_single_primary_building_image
+  AFTER INSERT OR UPDATE OF is_primary ON building_images
+  FOR EACH ROW
+  WHEN (NEW.is_primary)
+  EXECUTE FUNCTION enforce_single_primary_building_image();
+
+ALTER TABLE building_images ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_read_building_images" ON building_images;
+CREATE POLICY "public_read_building_images" ON building_images FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "admin_insert_building_images" ON building_images;
+CREATE POLICY "admin_insert_building_images" ON building_images FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_update_building_images" ON building_images;
+CREATE POLICY "admin_update_building_images" ON building_images FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_delete_building_images" ON building_images;
+CREATE POLICY "admin_delete_building_images" ON building_images FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+-- ---------------------------------------------------------------------
+-- Supabase Storage : bucket public "building-images"
+-- ---------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'building-images',
+  'building-images',
+  true,
+  8388608, -- 8 Mo par fichier
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = true,
+  file_size_limit = 8388608,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+
+DROP POLICY IF EXISTS "public_read_building_images_objects" ON storage.objects;
+CREATE POLICY "public_read_building_images_objects" ON storage.objects FOR SELECT TO anon, authenticated
+  USING (bucket_id = 'building-images');
+
+DROP POLICY IF EXISTS "admin_write_building_images_objects" ON storage.objects;
+CREATE POLICY "admin_write_building_images_objects" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'building-images' AND is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_update_building_images_objects" ON storage.objects;
+CREATE POLICY "admin_update_building_images_objects" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'building-images' AND is_campus_admin())
+  WITH CHECK (bucket_id = 'building-images' AND is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_delete_building_images_objects" ON storage.objects;
+CREATE POLICY "admin_delete_building_images_objects" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'building-images' AND is_campus_admin());
+
+
+/*
+# Photos des salles / lieux (location_images) — PROBLÈME 2 du cahier des charges
+
+## Overview
+`building_images` (migration 20260828100000) a donné une galerie de photos
+aux bâtiments, mais pas aux salles/lieux individuels (`locations`). Le
+cahier des charges demande explicitement qu'une salle ("Salle A101") puisse
+avoir sa propre photo, distincte de la photo du bâtiment qui la contient.
+
+Cette migration reproduit exactement le même schéma et les mêmes garanties
+que `building_images`, appliqué à `locations` :
+- une table `location_images` ;
+- un bucket Storage public dédié `location-images` (séparé de
+  `building-images` pour ne jamais mélanger les deux galeries et garder
+  des règles de nettoyage indépendantes) ;
+- une seule photo principale par lieu, appliquée par trigger côté base
+  (pas seulement côté client) ;
+- lecture publique, écriture réservée aux rôles admin via
+  `is_campus_admin()` (déjà définie par 20260826090000).
+
+Purement additif : aucune table existante n'est modifiée. Tant qu'aucune
+image n'est ajoutée pour un lieu donné, l'application continue de
+fonctionner exactement comme avant (repli sur la photo du bâtiment, ou sur
+l'icône de catégorie si le bâtiment lui-même n'a pas de photo).
+*/
+
+CREATE TABLE IF NOT EXISTS location_images (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id uuid NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  storage_path text NOT NULL,
+  public_url text NOT NULL,
+  caption text NOT NULL DEFAULT '',
+  is_primary boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS location_images_location_idx ON location_images (location_id);
+CREATE INDEX IF NOT EXISTS location_images_primary_idx ON location_images (location_id, is_primary);
+
+-- Une seule image principale par lieu (même logique que
+-- enforce_single_primary_building_image, appliquée à location_images).
+CREATE OR REPLACE FUNCTION enforce_single_primary_location_image()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.is_primary THEN
+    UPDATE location_images
+    SET is_primary = false
+    WHERE location_id = NEW.location_id
+      AND id <> NEW.id
+      AND is_primary = true;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_single_primary_location_image ON location_images;
+CREATE TRIGGER trg_single_primary_location_image
+  AFTER INSERT OR UPDATE OF is_primary ON location_images
+  FOR EACH ROW
+  WHEN (NEW.is_primary)
+  EXECUTE FUNCTION enforce_single_primary_location_image();
+
+ALTER TABLE location_images ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_read_location_images" ON location_images;
+CREATE POLICY "public_read_location_images" ON location_images FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "admin_insert_location_images" ON location_images;
+CREATE POLICY "admin_insert_location_images" ON location_images FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_update_location_images" ON location_images;
+CREATE POLICY "admin_update_location_images" ON location_images FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_delete_location_images" ON location_images;
+CREATE POLICY "admin_delete_location_images" ON location_images FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+-- ---------------------------------------------------------------------
+-- Supabase Storage : bucket public "location-images"
+-- ---------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'location-images',
+  'location-images',
+  true,
+  8388608, -- 8 Mo par fichier
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = true,
+  file_size_limit = 8388608,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+
+DROP POLICY IF EXISTS "public_read_location_images_objects" ON storage.objects;
+CREATE POLICY "public_read_location_images_objects" ON storage.objects FOR SELECT TO anon, authenticated
+  USING (bucket_id = 'location-images');
+
+DROP POLICY IF EXISTS "admin_write_location_images_objects" ON storage.objects;
+CREATE POLICY "admin_write_location_images_objects" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'location-images' AND is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_update_location_images_objects" ON storage.objects;
+CREATE POLICY "admin_update_location_images_objects" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'location-images' AND is_campus_admin())
+  WITH CHECK (bucket_id = 'location-images' AND is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_delete_location_images_objects" ON storage.objects;
+CREATE POLICY "admin_delete_location_images_objects" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'location-images' AND is_campus_admin());
+
+
+-- Archivage (ÉTAPE "Archivage" du cahier des charges) : remplace la
+-- suppression définitive par une désactivation réversible pour les
+-- bâtiments, les salles et le réseau de chemins (nœuds/segments).
+--
+-- Principe : on ajoute une colonne `archived_at` nullable. `NULL` =
+-- actif (comportement actuel, inchangé). Une date = archivé. Aucune
+-- ligne existante n'est supprimée ni recréée ; les policies RLS restent
+-- inchangées (la visibilité "archivé/actif" est filtrée côté client,
+-- comme le fait déjà le reste du projet avec `campus_id`, `building_id`,
+-- etc.) — cohérent avec l'architecture existante, pas de doublon.
+
+ALTER TABLE buildings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+ALTER TABLE route_nodes ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+ALTER TABLE route_segments ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+
+CREATE INDEX IF NOT EXISTS buildings_archived_idx ON buildings(archived_at);
+CREATE INDEX IF NOT EXISTS locations_archived_idx ON locations(archived_at);
+CREATE INDEX IF NOT EXISTS route_nodes_archived_idx ON route_nodes(archived_at);
+CREATE INDEX IF NOT EXISTS route_segments_archived_idx ON route_segments(archived_at);
+
+COMMENT ON COLUMN buildings.archived_at IS
+  'NULL = actif et visible partout. Une date = archivé : caché du public et de la navigation, mais conservé et restaurable par un admin.';
+COMMENT ON COLUMN locations.archived_at IS
+  'NULL = actif et visible partout. Une date = archivé : caché du public et de la navigation, mais conservé et restaurable par un admin.';
+COMMENT ON COLUMN route_nodes.archived_at IS
+  'NULL = actif, utilisé par le calcul d''itinéraire. Une date = archivé : exclu du graphe de navigation, conservé pour restauration.';
+COMMENT ON COLUMN route_segments.archived_at IS
+  'NULL = actif, utilisé par le calcul d''itinéraire. Une date = archivé : exclu du graphe de navigation, conservé pour restauration.';
+
+
+-- ============================================================
+-- Donnée d'exemple (démo/pédagogique) : un bâtiment complet avec son
+-- entrée + une salle, pour visualiser concrètement comment la
+-- localisation (lng/lat), la hiérarchie bâtiment > étage > salle, et
+-- l'entrée d'un bâtiment s'articulent dans la base.
+--
+-- Volontairement SÉPARÉE des autres migrations (celles-ci définissent
+-- le schéma, celle-ci ne fait qu'insérer des données d'exemple) :
+-- - à exécuter une seule fois APRÈS avoir créé votre campus depuis
+--   l'application (elle échoue proprement si aucun campus n'existe) ;
+-- - à supprimer/ignorer sans risque plus tard, ou à archiver depuis
+--   l'admin (bouton "Archiver") une fois que vous avez vos vrais
+--   bâtiments — voir la fin de ce fichier pour la commande de retrait.
+--
+-- Ré-exécutable sans risque (IDs fixes + ON CONFLICT DO UPDATE) : si
+-- vous relancez ce script, il met juste à jour les mêmes lignes au
+-- lieu d'en créer des doublons.
+--
+-- Positionnement : les coordonnées sont calculées à partir du VRAI
+-- centre de votre campus (table `campuses`), avec un petit décalage en
+-- degrés équivalant à quelques dizaines de mètres — donc toujours
+-- cohérentes avec votre campus réel, où qu'il se trouve dans le monde.
+-- Ce ne sont PAS les coordonnées exactes d'un vrai bâtiment : à
+-- corriger depuis l'admin (clic sur la carte) une fois en conditions
+-- réelles.
+-- ============================================================
+
+DO $$
+DECLARE
+  v_campus_id   uuid;
+  v_campus_lng  double precision;
+  v_campus_lat  double precision;
+  -- IDs fixes (et non aléatoires) : relancer ce script met à jour les
+  -- mêmes lignes au lieu d'en créer de nouvelles à chaque fois.
+  v_building_id uuid := '00000000-0000-4000-a000-000000000b01';
+  v_floor_id    uuid := '00000000-0000-4000-a000-000000000f01';
+  v_entrance_id uuid := '00000000-0000-4000-a000-000000000e01';
+  v_room_id     uuid := '00000000-0000-4000-a000-000000000101';
+BEGIN
+  SELECT id, center_lng, center_lat
+    INTO v_campus_id, v_campus_lng, v_campus_lat
+  FROM campuses
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  IF v_campus_id IS NULL THEN
+    RAISE EXCEPTION
+      'Aucun campus trouvé : créez d''abord votre campus depuis l''application (ou la table campuses) avant d''exécuter cette migration d''exemple.';
+  END IF;
+
+  -- ----------------------------------------------------------------
+  -- 1) Le bâtiment : "Bâtiment Informatique"
+  --    center_lng/center_lat = le point utilisé pour le marqueur du
+  --    bâtiment sur la carte (pas forcément l'entrée, voir plus bas).
+  -- ----------------------------------------------------------------
+  INSERT INTO buildings (
+    id, campus_id, name, code, description, category, color,
+    center_lng, center_lat, floor_count
+  ) VALUES (
+    v_building_id,
+    v_campus_id,
+    'Bâtiment Informatique',
+    'INFO',
+    'Exemple de remplissage — bâtiment abritant les laboratoires informatiques et salles réseau. À modifier ou remplacer par vos vrais bâtiments depuis l''admin.',
+    'academic',
+    '#2563eb',
+    v_campus_lng + 0.00035,  -- ≈ 35-40 m à l'est du centre du campus
+    v_campus_lat + 0.00010,  -- ≈ 10-12 m au nord
+    2
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    campus_id    = EXCLUDED.campus_id,
+    name         = EXCLUDED.name,
+    code         = EXCLUDED.code,
+    description  = EXCLUDED.description,
+    category     = EXCLUDED.category,
+    color        = EXCLUDED.color,
+    center_lng   = EXCLUDED.center_lng,
+    center_lat   = EXCLUDED.center_lat,
+    floor_count  = EXCLUDED.floor_count;
+
+  -- ----------------------------------------------------------------
+  -- 2) Un étage, pour montrer le lien salle -> étage -> bâtiment.
+  -- ----------------------------------------------------------------
+  INSERT INTO floors (id, building_id, level, name, sort_order)
+  VALUES (v_floor_id, v_building_id, 1, '1er étage', 1)
+  ON CONFLICT (id) DO UPDATE SET
+    building_id = EXCLUDED.building_id,
+    level       = EXCLUDED.level,
+    name        = EXCLUDED.name,
+    sort_order  = EXCLUDED.sort_order;
+
+  -- ----------------------------------------------------------------
+  -- 3) L'entrée du bâtiment : un lieu à part (kind='entrance'), utilisé
+  --    par le guidage extérieur comme point d'arrivée réel (ÉTAPE 14 du
+  --    cahier des charges) — jamais le centre géométrique du bâtiment,
+  --    qui n'est pas forcément accessible à pied.
+  -- ----------------------------------------------------------------
+  INSERT INTO locations (
+    id, building_id, floor_id, name, code, kind, category,
+    description, capacity, lng, lat, is_accessible
+  ) VALUES (
+    v_entrance_id,
+    v_building_id,
+    NULL,
+    'Entrée — Bâtiment Informatique',
+    'INFO-ENTREE',
+    'entrance',
+    'entrance',
+    'Entrée principale, côté avenue.',
+    NULL,
+    v_campus_lng + 0.00033,
+    v_campus_lat + 0.00006,
+    true
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    building_id  = EXCLUDED.building_id,
+    floor_id     = EXCLUDED.floor_id,
+    name         = EXCLUDED.name,
+    code         = EXCLUDED.code,
+    kind         = EXCLUDED.kind,
+    category     = EXCLUDED.category,
+    description  = EXCLUDED.description,
+    capacity     = EXCLUDED.capacity,
+    lng          = EXCLUDED.lng,
+    lat          = EXCLUDED.lat,
+    is_accessible = EXCLUDED.is_accessible;
+
+  -- ----------------------------------------------------------------
+  -- 4) La salle : "Salle Jumelle 1" (kind='room', category='lab') —
+  --    salle informatique, positionnée à l'intérieur du bâtiment,
+  --    reliée à l'étage créé ci-dessus.
+  -- ----------------------------------------------------------------
+  INSERT INTO locations (
+    id, building_id, floor_id, name, code, kind, category,
+    description, capacity, lng, lat, is_accessible
+  ) VALUES (
+    v_room_id,
+    v_building_id,
+    v_floor_id,
+    'Salle Jumelle 1',
+    'INFO-101',
+    'room',
+    'lab',
+    'Exemple de remplissage — salle informatique équipée de postes en réseau, jumelle de la "Salle Jumelle 2" située en face (à créer de la même façon si besoin).',
+    24,
+    v_campus_lng + 0.00036,
+    v_campus_lat + 0.00012,
+    true
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    building_id  = EXCLUDED.building_id,
+    floor_id     = EXCLUDED.floor_id,
+    name         = EXCLUDED.name,
+    code         = EXCLUDED.code,
+    kind         = EXCLUDED.kind,
+    category     = EXCLUDED.category,
+    description  = EXCLUDED.description,
+    capacity     = EXCLUDED.capacity,
+    lng          = EXCLUDED.lng,
+    lat          = EXCLUDED.lat,
+    is_accessible = EXCLUDED.is_accessible;
+
+  RAISE NOTICE 'Exemple inséré : bâtiment "%", étage "%", entrée "%", salle "%".',
+    v_building_id, v_floor_id, v_entrance_id, v_room_id;
+END $$;
+
+-- ============================================================
+-- Pour retirer cet exemple plus tard (une fois vos vraies données
+-- saisies), deux options :
+--
+-- Option A (recommandée) — depuis l'application : ouvrez l'admin,
+-- section Bâtiments, et cliquez "Archiver" sur "Bâtiment Informatique"
+-- (réversible, masque aussi ses salles).
+--
+-- Option B — suppression définitive en SQL (irréversible) :
+--   DELETE FROM buildings WHERE id = '00000000-0000-4000-a000-000000000b01';
+--   -- (les floors et locations liés sont supprimés automatiquement par
+--   --  les contraintes ON DELETE CASCADE / SET NULL du schéma)
+-- ============================================================
+
+
+/*
+# Correctif : écriture admin manquante sur qr_codes
+
+## Problème corrigé
+La migration 20260824165619_add_extension_tables.sql a activé RLS sur
+`qr_codes` et créé une policy de lecture publique (`public_read_qr`), mais
+n'a jamais ajouté les policies d'écriture admin — contrairement à toutes
+les autres tables "opérateur" du projet (`buildings`, `building_images`,
+`location_images`, `route_nodes`...), qui suivent toutes le même schéma
+public-read + admin-write via `is_campus_admin()`.
+
+Conséquence : `toggleQRCode()` (src/lib/extension-api.ts), utilisée par le
+bouton Activer/Désactiver de QRPage.tsx, échoue systématiquement avec une
+erreur RLS (42501) — et aucune ligne ne peut jamais être insérée dans
+`qr_codes` depuis l'application, quel que soit le rôle de l'utilisateur.
+
+Purement additif : aucune table, colonne ou policy existante n'est
+modifiée ou supprimée. La lecture publique reste inchangée.
+
+## Changements
+- Policies `admin_insert_qr_codes`, `admin_update_qr_codes`,
+  `admin_delete_qr_codes` sur `qr_codes`, réutilisant `is_campus_admin()`
+  (déjà définie par 20260826090000_admin_campus_write_access.sql).
+*/
+
+DROP POLICY IF EXISTS "admin_insert_qr_codes" ON qr_codes;
+CREATE POLICY "admin_insert_qr_codes" ON qr_codes FOR INSERT TO authenticated
+  WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_update_qr_codes" ON qr_codes;
+CREATE POLICY "admin_update_qr_codes" ON qr_codes FOR UPDATE TO authenticated
+  USING (is_campus_admin()) WITH CHECK (is_campus_admin());
+
+DROP POLICY IF EXISTS "admin_delete_qr_codes" ON qr_codes;
+CREATE POLICY "admin_delete_qr_codes" ON qr_codes FOR DELETE TO authenticated
+  USING (is_campus_admin());
+
+
+-- ÉTAPE 9 : diagnostic du compte MAIN
+-- À exécuter dans le SQL Editor de Supabase (Studio) en remplaçant l'e-mail.
+
+-- 1. Le compte existe-t-il, a-t-il un profil, quel rôle a-t-il réellement ?
+SELECT
+  au.id            AS auth_user_id,
+  au.email,
+  p.id             AS profile_id,
+  p.full_name,
+  p.role,
+  p.created_at
+FROM auth.users au
+LEFT JOIN public.profiles p ON p.id = au.id
+WHERE au.email = 'EMAIL_DU_COMPTE_MAIN';
+
+-- Résultats attendus / anomalies à surveiller :
+--   * profile_id est NULL              -> aucun profil pour ce user (le
+--     trigger d'auto-création dans AuthContext ne s'exécute qu'à la
+--     connexion ; créez la ligne manuellement si besoin, cf. requête 4).
+--   * role IS NULL ou 'STUDENT'        -> la mise à jour du rôle n'a pas
+--     été appliquée (c'était le bug corrigé par la migration
+--     20260827150000_fix_role_update_service_context.sql).
+--   * plusieurs lignes                 -> deux comptes auth.users partagent
+--     le même e-mail (rare) ou un profil est mal lié.
+
+-- 2. Y a-t-il un profil "orphelin" (lié à un UUID qui n'existe plus dans auth.users) ?
+SELECT p.*
+FROM public.profiles p
+LEFT JOIN auth.users au ON au.id = p.id
+WHERE au.id IS NULL;
+
+-- 3. Y a-t-il plus d'un profil SUPER_ADMIN / ADMIN que prévu (vérification rapide) ?
+SELECT id, full_name, role
+FROM public.profiles
+WHERE role IN ('SUPER_ADMIN', 'ADMIN', 'CAMPUS_MANAGER')
+ORDER BY role;
+
+-- 4. Mettre (ou remettre) explicitement le compte MAIN en SUPER_ADMIN.
+-- Exécuté depuis le SQL Editor, cette requête n'a pas de auth.uid() défini
+-- donc n'est plus bloquée par trg_prevent_role_self_escalation une fois la
+-- migration 20260827150000 appliquée.
+UPDATE public.profiles
+SET role = 'SUPER_ADMIN'
+WHERE id = (SELECT id FROM auth.users WHERE email = 'EMAIL_DU_COMPTE_MAIN');
+
+-- Si la ligne 4 renvoie "UPDATE 0", c'est qu'aucun profil n'existe pour ce
+-- user : il faut d'abord l'insérer, par ex. :
+-- INSERT INTO public.profiles (id, full_name, role)
+-- SELECT id, 'MAIN', 'SUPER_ADMIN' FROM auth.users WHERE email = 'EMAIL_DU_COMPTE_MAIN'
+-- ON CONFLICT (id) DO UPDATE SET role = 'SUPER_ADMIN';
+
+
+
+
+-- =====================================================================
+-- Réseau piéton de démonstration (route_nodes / route_segments)
+-- HEC Smart Navigator
+--
+-- - Ne crée aucun campus, ne supprime aucune donnée existante.
+-- - Idempotent : IDs fixes + ON CONFLICT DO UPDATE → ré-exécutable sans
+--   créer de doublons.
+-- - Réutilise les vraies coordonnées d'une entrée / d'un lieu existants
+--   (table locations) si elles existent déjà pour ce campus ; sinon
+--   repli sur des coordonnées DE DÉMONSTRATION calculées autour de
+--   campuses.center_lng / center_lat (clairement marquées ci-dessous).
+-- =====================================================================
+
+-- Fonction utilitaire : distance approx. en mètres entre deux points
+-- lng/lat (formule haversine). Aucune extension requise. Purement
+-- additive — ne touche à aucune table existante.
+CREATE OR REPLACE FUNCTION route_seed_haversine_m(
+  lng1 double precision, lat1 double precision,
+  lng2 double precision, lat2 double precision
+) RETURNS double precision
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 6371000 * 2 * asin(
+    sqrt(
+      power(sin(radians(lat2 - lat1) / 2), 2) +
+      cos(radians(lat1)) * cos(radians(lat2)) *
+      power(sin(radians(lng2 - lng1) / 2), 2)
+    )
+  );
+$$;
+
+DO $$
+DECLARE
+  v_campus_id   uuid;
+  v_campus_lng  double precision;
+  v_campus_lat  double precision;
+
+  -- Entrée réelle (locations.kind = 'entrance') si elle existe pour ce
+  -- campus, sinon repli DEMO.
+  v_entry_lng   double precision;
+  v_entry_lat   double precision;
+
+  -- Destination réelle (un lieu non-entrée) si elle existe, sinon repli DEMO.
+  v_dest_lng    double precision;
+  v_dest_lat    double precision;
+
+  -- Vecteur entrée -> destination, utilisé pour placer les nœuds
+  -- intermédiaires PAR INTERPOLATION (donc toujours cohérents avec la
+  -- position réelle de l'entrée et de la destination, où qu'elles soient).
+  v_dx double precision;
+  v_dy double precision;
+  v_perp_lng double precision;
+  v_perp_lat double precision;
+
+  v_a_lng double precision; v_a_lat double precision;
+  v_b_lng double precision; v_b_lat double precision;
+  v_c_lng double precision; v_c_lat double precision;
+  v_d_lng double precision; v_d_lat double precision;
+  v_e_lng double precision; v_e_lat double precision;
+
+  -- IDs fixes, namespace dédié (a200 = nœuds, a201 = segments) pour ne
+  -- jamais entrer en collision avec les IDs du script de données
+  -- d'exemple bâtiment/salle (namespace a000/f000/e000/0000...101).
+  v_n_entree uuid := '00000000-0000-4000-a200-000000000001';
+  v_n_a      uuid := '00000000-0000-4000-a200-000000000002';
+  v_n_b      uuid := '00000000-0000-4000-a200-000000000003';
+  v_n_c      uuid := '00000000-0000-4000-a200-000000000004';
+  v_n_d      uuid := '00000000-0000-4000-a200-000000000005';
+  v_n_e      uuid := '00000000-0000-4000-a200-000000000006';
+  v_n_dest   uuid := '00000000-0000-4000-a200-000000000007';
+
+  v_seg_entree_a uuid := '00000000-0000-4000-a201-000000000001';
+  v_seg_a_b      uuid := '00000000-0000-4000-a201-000000000002';
+  v_seg_b_c      uuid := '00000000-0000-4000-a201-000000000003';
+  v_seg_b_d      uuid := '00000000-0000-4000-a201-000000000004';
+  v_seg_c_e      uuid := '00000000-0000-4000-a201-000000000005';
+  v_seg_d_e      uuid := '00000000-0000-4000-a201-000000000006';
+  v_seg_d_dest   uuid := '00000000-0000-4000-a201-000000000007';
+BEGIN
+  -- ------------------------------------------------------------------
+  -- 1) Récupère le campus existant (le plus ancien) — jamais créé ici.
+  -- ------------------------------------------------------------------
+  SELECT id, center_lng, center_lat
+    INTO v_campus_id, v_campus_lng, v_campus_lat
+  FROM campuses
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  IF v_campus_id IS NULL THEN
+    RAISE EXCEPTION
+      'Aucun campus trouvé : créez d''abord un campus (table campuses) avant d''exécuter ce script.';
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- 2) Entrée : réutilise une location réelle kind='entrance' liée à ce
+  --    campus (via buildings.campus_id) si elle existe.
+  -- ------------------------------------------------------------------
+  SELECT l.lng, l.lat
+    INTO v_entry_lng, v_entry_lat
+  FROM locations l
+  JOIN buildings b ON b.id = l.building_id
+  WHERE b.campus_id = v_campus_id
+    AND l.kind = 'entrance'
+    AND l.archived_at IS NULL
+    AND b.archived_at IS NULL
+  ORDER BY l.created_at ASC
+  LIMIT 1;
+
+  IF v_entry_lng IS NULL THEN
+    -- Repli DEMO — à remplacer par la vraie entrée du campus une fois
+    -- saisie (≈ 45 m au sud-ouest du centre du campus).
+    v_entry_lng := v_campus_lng - 0.00030;
+    v_entry_lat := v_campus_lat - 0.00025;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- 3) Destination : réutilise un lieu réel (salle/bureau/POI, donc
+  --    kind <> 'entrance') déjà présent pour ce campus si disponible.
+  -- ------------------------------------------------------------------
+  SELECT l.lng, l.lat
+    INTO v_dest_lng, v_dest_lat
+  FROM locations l
+  JOIN buildings b ON b.id = l.building_id
+  WHERE b.campus_id = v_campus_id
+    AND l.kind <> 'entrance'
+    AND l.archived_at IS NULL
+    AND b.archived_at IS NULL
+  ORDER BY l.created_at ASC
+  LIMIT 1;
+
+  IF v_dest_lng IS NULL THEN
+    -- Repli DEMO — à remplacer par une vraie salle une fois saisie
+    -- (≈ 45 m au nord-est du centre du campus).
+    v_dest_lng := v_campus_lng + 0.00035;
+    v_dest_lat := v_campus_lat + 0.00030;
+  END IF;
+
+  -- Garde-fou (cas dégénéré improbable) : entrée et destination identiques.
+  IF v_dest_lng = v_entry_lng AND v_dest_lat = v_entry_lat THEN
+    v_dest_lng := v_dest_lng + 0.00030;
+    v_dest_lat := v_dest_lat + 0.00025;
+  END IF;
+
+  -- ------------------------------------------------------------------
+  -- 4) Nœuds intermédiaires (Carrefour A/B/C/E, Corridor D) : POSITIONS
+  --    DE DÉMONSTRATION calculées par interpolation entre l'entrée et
+  --    la destination (réelles ou DEMO ci-dessus) — donc toujours
+  --    cohérentes géographiquement, quel que soit l'emplacement réel du
+  --    campus. À ajuster plus tard depuis l'outil admin de tracé des
+  --    chemins pour suivre les vraies allées.
+  -- ------------------------------------------------------------------
+  v_dx := v_dest_lng - v_entry_lng;
+  v_dy := v_dest_lat - v_entry_lat;
+  v_perp_lng := -v_dy * 0.3;
+  v_perp_lat :=  v_dx * 0.3;
+
+  v_a_lng := v_entry_lng + 0.15 * v_dx;  v_a_lat := v_entry_lat + 0.15 * v_dy;
+  v_b_lng := v_entry_lng + 0.40 * v_dx;  v_b_lat := v_entry_lat + 0.40 * v_dy;
+  v_d_lng := v_entry_lng + 0.65 * v_dx;  v_d_lat := v_entry_lat + 0.65 * v_dy;
+  v_c_lng := v_b_lng + v_perp_lng;       v_c_lat := v_b_lat + v_perp_lat;
+  v_e_lng := v_d_lng + v_perp_lng;       v_e_lat := v_d_lat + v_perp_lat;
+
+  -- ------------------------------------------------------------------
+  -- 5) Nœuds. Schéma :
+  --    ENTRÉE - A - B ─ C
+  --                 │   │
+  --                 D ─ E
+  --                 │
+  --            DESTINATION
+  -- ------------------------------------------------------------------
+  INSERT INTO route_nodes (id, campus_id, lng, lat, type, label, archived_at)
+  VALUES
+    (v_n_entree, v_campus_id, v_entry_lng, v_entry_lat, 'entrance',     'Entrée principale',  NULL),
+    (v_n_a,      v_campus_id, v_a_lng,     v_a_lat,     'intersection', 'Carrefour A',        NULL),
+    (v_n_b,      v_campus_id, v_b_lng,     v_b_lat,     'intersection', 'Carrefour B',        NULL),
+    (v_n_c,      v_campus_id, v_c_lng,     v_c_lat,     'intersection', 'Carrefour C',        NULL),
+    (v_n_d,      v_campus_id, v_d_lng,     v_d_lat,     'corridor',     'Corridor principal', NULL),
+    (v_n_e,      v_campus_id, v_e_lng,     v_e_lat,     'intersection', 'Carrefour E',        NULL),
+    (v_n_dest,   v_campus_id, v_dest_lng,  v_dest_lat,  'poi',          'Salle / Destination', NULL)
+  ON CONFLICT (id) DO UPDATE SET
+    campus_id   = EXCLUDED.campus_id,
+    lng         = EXCLUDED.lng,
+    lat         = EXCLUDED.lat,
+    type        = EXCLUDED.type,
+    label       = EXCLUDED.label,
+    archived_at = EXCLUDED.archived_at;
+
+  -- ------------------------------------------------------------------
+  -- 6) Segments — distance calculée (jamais en dur) à partir des
+  --    coordonnées réelles des deux nœuds.
+  -- ------------------------------------------------------------------
+  INSERT INTO route_segments (id, campus_id, from_node, to_node, distance, accessible, segment_type, archived_at)
+  VALUES
+    (v_seg_entree_a, v_campus_id, v_n_entree, v_n_a,
+     route_seed_haversine_m(v_entry_lng, v_entry_lat, v_a_lng, v_a_lat), true, 'walkway', NULL),
+    (v_seg_a_b, v_campus_id, v_n_a, v_n_b,
+     route_seed_haversine_m(v_a_lng, v_a_lat, v_b_lng, v_b_lat), true, 'walkway', NULL),
+    (v_seg_b_c, v_campus_id, v_n_b, v_n_c,
+     route_seed_haversine_m(v_b_lng, v_b_lat, v_c_lng, v_c_lat), true, 'walkway', NULL),
+    (v_seg_b_d, v_campus_id, v_n_b, v_n_d,
+     route_seed_haversine_m(v_b_lng, v_b_lat, v_d_lng, v_d_lat), true, 'corridor', NULL),
+    (v_seg_c_e, v_campus_id, v_n_c, v_n_e,
+     route_seed_haversine_m(v_c_lng, v_c_lat, v_e_lng, v_e_lat), true, 'walkway', NULL),
+    (v_seg_d_e, v_campus_id, v_n_d, v_n_e,
+     route_seed_haversine_m(v_d_lng, v_d_lat, v_e_lng, v_e_lat), true, 'corridor', NULL),
+    (v_seg_d_dest, v_campus_id, v_n_d, v_n_dest,
+     route_seed_haversine_m(v_d_lng, v_d_lat, v_dest_lng, v_dest_lat), true, 'corridor', NULL)
+  ON CONFLICT (id) DO UPDATE SET
+    campus_id     = EXCLUDED.campus_id,
+    from_node     = EXCLUDED.from_node,
+    to_node       = EXCLUDED.to_node,
+    distance      = EXCLUDED.distance,
+    accessible    = EXCLUDED.accessible,
+    segment_type  = EXCLUDED.segment_type,
+    archived_at   = EXCLUDED.archived_at;
+
+  RAISE NOTICE 'Réseau piéton créé/mis à jour pour le campus %: 7 nœuds, 7 segments.', v_campus_id;
+END $$;
+
+-- =====================================================================
+-- VALIDATION
+-- =====================================================================
+
+-- Compteurs globaux
+SELECT
+  (SELECT count(*) FROM campuses)                                   AS nb_campus,
+  (SELECT count(*) FROM route_nodes)                                AS nb_route_nodes,
+  (SELECT count(*) FROM route_segments)                             AS nb_route_segments,
+  (SELECT count(*) FROM route_nodes WHERE archived_at IS NULL)      AS nb_nodes_actifs,
+  (SELECT count(*) FROM route_segments WHERE archived_at IS NULL)   AS nb_segments_actifs;
+
+-- Détail des nœuds
+SELECT id, label, type, lng, lat, campus_id, archived_at
+FROM route_nodes
+ORDER BY campus_id, created_at;
+
+-- Détail des segments
+SELECT id, from_node, to_node, distance, accessible, segment_type, campus_id, archived_at
+FROM route_segments
+ORDER BY campus_id, created_at;
+
+-- Cohérence campus : doit renvoyer 0 ligne. Toute ligne retournée signale
+-- un segment dont une extrémité appartient à un autre campus que le
+-- segment lui-même.
+SELECT
+  s.id AS segment_id,
+  s.campus_id AS segment_campus,
+  nf.campus_id AS from_node_campus,
+  nt.campus_id AS to_node_campus
+FROM route_segments s
+JOIN route_nodes nf ON nf.id = s.from_node
+JOIN route_nodes nt ON nt.id = s.to_node
+WHERE s.campus_id <> nf.campus_id OR s.campus_id <> nt.campus_id;
+
+
+
+SELECT l.id, l.name, l.kind, l.lng, l.lat, l.created_at, b.name AS building_name
+FROM locations l
+JOIN buildings b ON b.id = l.building_id
+WHERE b.campus_id = '00000000-0000-4000-a000-000000000c01'
+  AND l.archived_at IS NULL AND b.archived_at IS NULL
+ORDER BY l.created_at ASC
+LIMIT 5;
+

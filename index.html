@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Anti-flash de thème : applique la classe `dark` avant le premier rendu,
+         avec la même clé (`hec-settings`) et la même logique que SettingsContext. -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('hec-settings');
+          var theme = raw ? JSON.parse(raw).theme : 'system';
+          var dark =
+            theme === 'dark' ||
+            ((theme === 'system' || !theme) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {
+          /* stockage indisponible : le thème par défaut s'appliquera au montage */
+        }
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#111d47" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- iOS ne lit pas les icônes du manifest.json : nécessite ses propres balises -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HEC Localisation" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>HEC Localisation — Le campus HEC, à portée de carte.</title>
+    <meta
+      name="description"
+      content="HEC Localisation : cartographie interactive, recherche et navigation intérieure du campus HEC Kinshasa."
+    />
+    <meta property="og:title" content="HEC Localisation" />
+    <meta property="og:description" content="Le campus HEC, à portée de carte." />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

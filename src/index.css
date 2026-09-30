@@ -1,0 +1,241 @@
+@import 'maplibre-gl/dist/maplibre-gl.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background: #0a1024;
+  color: #e2e8f0;
+}
+
+html.high-contrast {
+  --hc-border: 2px solid #000;
+}
+
+html.high-contrast .glass {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* "Vous êtes ici" : le point de géolocalisation MapLibre passe du bleu par
+   défaut au vert, cohérent avec le marqueur de départ de l'itinéraire. */
+.maplibregl-user-location-dot,
+.maplibregl-user-location-dot::before {
+  background-color: #10b981;
+}
+.maplibregl-user-location-accuracy-circle {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #111d47;
+  background: #f7f9fc;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  body {
+    line-height: 1.55;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* MapLibre popups & controls tuned to product theme */
+.maplibregl-ctrl-group {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 30px rgba(17, 29, 71, 0.12) !important;
+  border: 1px solid rgba(17, 29, 71, 0.06) !important;
+}
+.maplibregl-ctrl-attrib {
+  font-size: 10px;
+  border-radius: 8px 0 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* =====================================================================
+   MODE SOMBRE GLOBAL (PHASE 5 / 17 / 18) — contraste WCAG AA.
+
+   Les pages n'ayant pas toutes de variantes `dark:` explicites, on
+   remappe ici les couleurs utilitaires « claires » les plus courantes
+   vers une palette sombre cohérente HEC (bleu nuit). Aucune forme
+   blanche invisible, aucun texte foncé sur fond foncé.
+
+   `:where()` ramène la spécificité à celle d'une simple classe : les
+   variantes `dark:` déjà écrites dans les composants (spécificité
+   supérieure) gardent la priorité — on ne les écrase jamais.
+   Ratios de contraste CALCULÉS (formule WCAG) — texte sur #10193a :
+     #e8eeff 14.8:1 · #cbd5e1 11.6:1 · #9fb0c8 7.8:1 · #8ea0bb 6.5:1
+     · #7fa4ff 7.1:1 ; minimum 5.1:1 sur le fond le plus clair (slate-200).
+   ===================================================================== */
+:where(html.dark) .bg-white { background-color: #10193a; }
+:where(html.dark) .bg-white\/95 { background-color: rgba(16, 25, 58, 0.95); }
+:where(html.dark) .bg-white\/90 { background-color: rgba(16, 25, 58, 0.9); }
+:where(html.dark) .bg-white\/80 { background-color: rgba(16, 25, 58, 0.8); }
+:where(html.dark) .bg-white\/70 { background-color: rgba(16, 25, 58, 0.7); }
+:where(html.dark) .bg-white\/60 { background-color: rgba(16, 25, 58, 0.6); }
+:where(html.dark) .bg-slate-50 { background-color: #0d1533; }
+:where(html.dark) .bg-slate-100 { background-color: #18224a; }
+:where(html.dark) .bg-slate-200 { background-color: #202b57; }
+:where(html.dark) .bg-slate-200\/70 { background-color: rgba(32, 43, 87, 0.7); }
+:where(html.dark) .bg-hec-50,
+:where(html.dark) .bg-hec-50\/60,
+:where(html.dark) .bg-hec-50\/70 { background-color: rgba(30, 94, 255, 0.14); }
+:where(html.dark) .bg-hec-100 { background-color: rgba(30, 94, 255, 0.24); }
+:where(html.dark) .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.14); }
+:where(html.dark) .bg-amber-50 { background-color: rgba(245, 158, 11, 0.14); }
+:where(html.dark) .bg-red-50,
+:where(html.dark) .bg-red-50\/60 { background-color: rgba(239, 68, 68, 0.14); }
+:where(html.dark) .bg-red-100 { background-color: rgba(239, 68, 68, 0.22); }
+:where(html.dark) .from-white {
+  --tw-gradient-from: #10193a var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(16 25 58 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+:where(html.dark) .to-slate-50 { --tw-gradient-to: #0d1533 var(--tw-gradient-to-position); }
+:where(html.dark) .glass { background: rgba(16, 25, 58, 0.78); }
+
+:where(html.dark) .text-hec-950,
+:where(html.dark) .text-hec-900,
+:where(html.dark) .text-slate-900,
+:where(html.dark) .text-slate-800 { color: #e8eeff; }
+:where(html.dark) .text-hec-800,
+:where(html.dark) .text-hec-700 { color: #b9ccff; }
+:where(html.dark) .text-hec-600,
+:where(html.dark) .text-hec-500 { color: #7fa4ff; }
+:where(html.dark) .text-slate-700 { color: #dbe3f0; }
+:where(html.dark) .text-slate-600 { color: #cbd5e1; }
+:where(html.dark) .text-slate-500 { color: #9fb0c8; }
+:where(html.dark) .text-slate-400 { color: #8ea0bb; }
+:where(html.dark) .text-red-600,
+:where(html.dark) .text-red-700 { color: #fca5a5; }
+:where(html.dark) .text-red-900 { color: #fecaca; }
+:where(html.dark) .text-emerald-700 { color: #6ee7b7; }
+:where(html.dark) .text-amber-700 { color: #fcd34d; }
+
+:where(html.dark) .border-slate-100 { border-color: #1c2650; }
+:where(html.dark) .border-slate-200,
+:where(html.dark) .border-slate-200\/70 { border-color: #26315f; }
+:where(html.dark) .border-slate-300 { border-color: #33406f; }
+:where(html.dark) .border-hec-100 { border-color: rgba(92, 136, 255, 0.35); }
+:where(html.dark) .border-red-100 { border-color: rgba(239, 68, 68, 0.3); }
+:where(html.dark) .border-emerald-200 { border-color: rgba(16, 185, 129, 0.35); }
+:where(html.dark) .border-amber-200 { border-color: rgba(245, 158, 11, 0.35); }
+
+:where(html.dark) .hover\:bg-slate-50:hover { background-color: #18224a; }
+:where(html.dark) .hover\:bg-slate-100:hover { background-color: #202b57; }
+:where(html.dark) .hover\:bg-hec-50:hover { background-color: rgba(30, 94, 255, 0.2); }
+:where(html.dark) .hover\:bg-hec-100:hover { background-color: rgba(30, 94, 255, 0.3); }
+:where(html.dark) .hover\:text-hec-600:hover { color: #a9c1ff; }
+
+/* Champs de formulaire : jamais illisibles, même sans classes dark:. */
+:where(html.dark) input,
+:where(html.dark) select,
+:where(html.dark) textarea {
+  background-color: #0d1533;
+  color: #e8eeff;
+  border-color: #33406f;
+}
+:where(html.dark) input::placeholder,
+:where(html.dark) textarea::placeholder { color: #7d8db0; }
+:where(html.dark) option { background-color: #10193a; color: #e8eeff; }
+
+/* Focus clavier toujours visible (WCAG 2.4.7). */
+:focus-visible { outline-offset: 2px; }
+
+/* Zones tactiles ≥ 44 px pour les actions principales (mobile). */
+@media (pointer: coarse) {
+  .maplibregl-ctrl-group button { min-width: 44px; min-height: 44px; }
+}
+
+/* =====================================================================
+   HERO SLIDESHOW — fondu + léger zoom (scale 1.03 → 1), calme, sans flash.
+   ===================================================================== */
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+.hero-slide[data-active='true'] {
+  opacity: 1;
+  z-index: 1;
+}
+.hero-slide img {
+  transform: scale(1.03);
+  /* L'image sortante garde son échelle pendant le fondu, puis se réarme. */
+  transition: transform 0s linear 900ms;
+}
+.hero-slide[data-active='true'] img {
+  transform: scale(1);
+  transition: transform 1200ms ease-out;
+}
+@keyframes hero-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes hero-caption-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-caption {
+  animation: hero-caption-in 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide { transition: opacity 150ms linear; }
+  .hero-slide img,
+  .hero-slide[data-active='true'] img { transform: none; transition: none; }
+  .hero-caption { animation: none; }
+}
+
+/* Apparition douce des sections au scroll (voir Reveal.tsx). */
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity 600ms ease, transform 600ms cubic-bezier(0.16, 1, 0.3, 1); }
+.reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
