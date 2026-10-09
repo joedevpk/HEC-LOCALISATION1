@@ -59,7 +59,7 @@ export function AdminDiagnosticPanel() {
         </Button>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100">
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100">
         <table className="w-full text-left text-sm">
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => (

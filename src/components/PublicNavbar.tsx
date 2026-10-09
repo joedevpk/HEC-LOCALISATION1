@@ -98,20 +98,20 @@ export function PublicNavbar() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-300 ${
+      className={`fixed inset-x-0 top-0 z-50 border-b pt-[env(safe-area-inset-top)] transition-all duration-300 ${
         solid
           ? 'glass border-slate-200/70 shadow-glass'
           : 'border-transparent bg-transparent'
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5 lg:h-[72px] lg:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-5 lg:h-[72px] lg:px-8">
         <button
           onClick={() => {
             setOpen(false);
             scrollToSection('top');
           }}
           aria-label="HEC Localisation — retour en haut de l'accueil"
-          className="rounded-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-hec-300/60"
+          className="min-w-0 rounded-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-hec-300/60"
         >
           <Logo inverted={!solid} />
         </button>
@@ -128,7 +128,7 @@ export function PublicNavbar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <button
             onClick={() => go('/search')}
             aria-label="Rechercher un lieu"
@@ -136,7 +136,9 @@ export function PublicNavbar() {
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </button>
-          <ThemeToggle buttonClass={linkClass} />
+          <div className="hidden sm:block">
+            <ThemeToggle buttonClass={linkClass} />
+          </div>
           <div className="hidden lg:block">
             <LanguageSwitcher compact menuPosition="down" />
           </div>
@@ -188,7 +190,7 @@ export function PublicNavbar() {
       {open && (
         <div
           id="public-mobile-menu"
-          className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-slate-100 bg-white px-5 pb-6 pt-3 shadow-panel animate-fade-in lg:hidden"
+          className="max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-slate-100 bg-white px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3 shadow-panel animate-fade-in lg:hidden"
         >
           <nav aria-label="Menu mobile" className="flex flex-col">
             {mobileItems.map((item) => (

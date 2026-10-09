@@ -129,7 +129,7 @@ export function BuildingPositionPicker({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-hec-950/60 p-4 backdrop-blur-sm">
-      <div className="flex h-[min(700px,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex h-[min(700px,90dvh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-hec-500">

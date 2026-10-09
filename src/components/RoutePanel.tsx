@@ -111,7 +111,7 @@ export function RoutePanel({
         </div>
         <button
           onClick={onClose}
-          className="grid h-9 w-9 place-items-center rounded-full text-slate-400 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+          className="-mr-1 grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
           aria-label="Fermer l'itinéraire"
         >
           <X className="h-4 w-4" />
@@ -119,17 +119,17 @@ export function RoutePanel({
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-hec-100 bg-hec-50/60 px-3 py-2.5">
-        <div>
+        <div className="min-w-0">
           <span className="text-[11px] font-medium uppercase tracking-wide text-hec-500">
             Destination
           </span>
-          <p className="mt-0.5 text-sm font-semibold text-hec-950">{destination.name}</p>
+          <p className="mt-0.5 break-words text-sm font-semibold text-hec-950">{destination.name}</p>
         </div>
         {onChangeDestination && (
           <button
             onClick={onChangeDestination}
             aria-label="Modifier la destination"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-hec-500 hover:bg-hec-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-hec-500 hover:bg-hec-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
           >
             <Pencil className="h-4 w-4" />
           </button>
@@ -166,7 +166,7 @@ export function RoutePanel({
           {onUseMyLocation && (
             <button
               onClick={onUseMyLocation}
-              className="flex w-full items-center gap-2 rounded-xl border border-hec-200 bg-hec-50 px-3 py-3 text-sm font-semibold text-hec-700 hover:bg-hec-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+              className="flex w-full items-center gap-2 min-h-[48px] rounded-xl border border-hec-200 bg-hec-50 px-3 py-3 text-sm font-semibold text-hec-700 hover:bg-hec-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
             >
               <LocateFixed className="h-4 w-4" />
               Utiliser ma position
@@ -180,7 +180,7 @@ export function RoutePanel({
             <select
               value={origin?.id ?? ''}
               onChange={(e) => onChangeOrigin(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-hec-950 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
+              className="mt-1 min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-hec-950 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
             >
               <option value="" disabled>
                 Choisir un point de départ…
@@ -231,7 +231,7 @@ export function RoutePanel({
             <Waypoints className="h-3.5 w-3.5" />
             {route.usedNetwork
               ? 'Itinéraire calculé sur le réseau réel du campus'
-              : "Itinéraire direct (réseau de navigation non défini pour ce trajet)"}
+              : "Tracé indicatif : non calculé sur le réseau piéton, à ne pas suivre à la lettre"}
           </div>
 
           {navigation && (
@@ -259,7 +259,7 @@ export function RoutePanel({
               <select
                 value={origin.id}
                 onChange={(e) => onChangeOrigin(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-hec-950 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
+                className="mt-1 min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-hec-950 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
               >
                 {origins.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -286,14 +286,14 @@ export function RoutePanel({
               <div className="flex items-center gap-1.5 text-slate-400">
                 <Clock className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-medium uppercase tracking-wide">
-                  À pied
+                  À pied (estimé)
                 </span>
               </div>
               {/* Jamais de fausse précision : si la durée n'est pas
                   disponible côté routing réel, on l'indique clairement au
                   lieu d'afficher "0 min" ou une estimation inventée. */}
               <p className="mt-0.5 font-display text-lg font-bold text-hec-950">
-                {hasDuration ? `${route.durationMinutes} min` : '—'}
+                {hasDuration ? `≈ ${route.durationMinutes} min` : '—'}
               </p>
               {!hasDuration && (
                 <p className="text-[11px] text-slate-400">Durée non disponible</p>
@@ -331,7 +331,7 @@ export function RoutePanel({
                 />
               </button>
               {stepsOpen && (
-                <ol className="mt-2 max-h-64 space-y-3 overflow-y-auto pr-1">
+                <ol className="mt-2 max-h-48 space-y-3 overflow-y-auto overscroll-contain pr-1">
                   {route.steps.map((step, i) => (
                     <li
                       key={i}
@@ -365,7 +365,7 @@ export function RoutePanel({
               {onStart && (
                 <button
                   onClick={onStart}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-hec-950 px-3 py-3 text-sm font-semibold text-white hover:bg-hec-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-200"
+                  className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-hec-950 px-3 py-3 text-sm font-semibold text-white hover:bg-hec-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-200"
                 >
                   <Navigation className="h-4 w-4" />
                   Démarrer
@@ -375,7 +375,7 @@ export function RoutePanel({
                 <button
                   onClick={onRecenter}
                   aria-label="Recentrer la carte"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-slate-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:border-slate-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
                 >
                   <LocateFixed className="h-4 w-4" />
                 </button>

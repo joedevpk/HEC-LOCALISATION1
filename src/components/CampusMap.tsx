@@ -50,15 +50,32 @@ interface CampusMapProps {
   onGeolocateControlReady?: (trigger: () => void) => void;
 }
 
+/** Échappe les données texte avant de les insérer dans du HTML de marqueur
+ * (noms/codes saisis en base : jamais interprétés comme du balisage). */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** N'accepte qu'une couleur CSS simple (#hex, rgb(), hsl(), nom) pour un style inline. */
+function safeColor(value: unknown, fallback = '#1e5eff'): string {
+  const v = String(value ?? '').trim();
+  return /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d\s.,%/]+\)|[a-zA-Z]{3,20})$/.test(v) ? v : fallback;
+}
+
 function buildingMarkerEl(building: Building, onClick: () => void) {
   const el = document.createElement('button');
   el.type = 'button';
   el.setAttribute('aria-label', `${building.name} (${building.code})`);
   el.className =
-    'group flex items-center gap-1.5 rounded-full bg-white pl-1 pr-2.5 py-1 shadow-[0_6px_20px_rgba(17,29,71,0.18)] border border-white ring-1 ring-black/5 transition-transform hover:scale-105';
+    'group flex min-h-[36px] items-center gap-1.5 rounded-full bg-white pl-1 pr-2.5 py-1 shadow-[0_6px_20px_rgba(17,29,71,0.18)] border border-white ring-1 ring-black/5 transition-transform hover:scale-105';
   el.innerHTML = `
-    <span class="grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white" style="background:${building.color}">${building.code}</span>
-    <span class="text-[11px] font-semibold text-hec-950 whitespace-nowrap max-w-[120px] truncate">${building.name.split('—')[0].trim()}</span>
+    <span class="grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white" style="background:${safeColor(building.color)}">${escapeHtml(building.code)}</span>
+    <span class="text-[11px] font-semibold text-hec-950 whitespace-nowrap max-w-[120px] truncate">${escapeHtml(building.name.split('—')[0].trim())}</span>
   `;
   el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -114,7 +131,7 @@ function focusMarkerEl() {
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', 'Destination');
   el.innerHTML = `
-    <span class="absolute -inset-3 rounded-full bg-red-500/25 animate-ping"></span>
+    <span class="absolute -inset-3 rounded-full bg-red-500/25 animate-ping motion-reduce:animate-none"></span>
     <span class="relative grid h-9 w-9 place-items-center rounded-full bg-red-500 text-white shadow-[0_8px_24px_rgba(239,68,68,0.5)] ring-4 ring-white">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>
     </span>`;
@@ -129,7 +146,7 @@ function originMarkerEl(label: string) {
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', label);
   el.innerHTML = `
-    <span class="absolute -inset-2.5 rounded-full bg-emerald-500/25 animate-ping"></span>
+    <span class="absolute -inset-2.5 rounded-full bg-emerald-500/25 animate-ping motion-reduce:animate-none"></span>
     <span class="relative grid h-6 w-6 place-items-center rounded-full bg-emerald-500 ring-4 ring-white shadow-[0_6px_18px_rgba(16,185,129,0.5)]"></span>`;
   return el;
 }
@@ -565,6 +582,20 @@ export function CampusMap({
     });
     mapRef.current = map;
     poiInteractionsAttachedRef.current = false;
+    // Le conteneur peut changer de taille sans événement `window.resize`
+    // (barre d'adresse iOS qui se replie, rotation, clavier, barre basse) :
+    // on redimensionne le canvas WebGL pour éviter une carte coupée/étirée.
+    let resizeFrame = 0;
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(() => map.resize());
+          })
+        : null;
+    resizeObserver?.observe(containerRef.current);
+    const onOrientation = () => window.setTimeout(() => map.resize(), 250);
+    window.addEventListener('orientationchange', onOrientation);
     // Écouteur unique par instance de map (survit à setStyle, pas besoin
     // de le rattacher dans 'style.load') : voir attachMissingIconFallback.
     attachMissingIconFallback(map);
@@ -722,6 +753,9 @@ export function CampusMap({
     });
 
     return () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('orientationchange', onOrientation);
       markersRef.current.forEach((m) => m.remove());
       dynamicRef.current.forEach((m) => m.remove());
       markersRef.current = [];
@@ -843,11 +877,17 @@ export function CampusMap({
     if (!map || !focusLocation) return;
     const pos = toLngLat(focusLocation.lng, focusLocation.lat);
     if (!pos) return;
+    // Le point sélectionné ne doit pas se retrouver sous le panneau latéral
+    // (desktop) ni sous la feuille basse (mobile) : on le décale vers la
+    // zone réellement visible de la carte. `offset` n'est pas persistant.
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    const offset: [number, number] = w >= 1024 ? [204, 0] : [0, -Math.round(h * 0.2)];
     map.flyTo({
       center: pos,
       zoom: Math.max(map.getZoom(), 18),
       duration: 900,
       essential: true,
+      offset,
     });
   }, [focusLocation]);
 

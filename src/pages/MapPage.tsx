@@ -26,6 +26,7 @@ import { poiCategoryToFilterGroup } from '@/lib/poi-categories';
 import { fetchExternalPOIs, isUserAbort } from '@/lib/osm-poi';
 import { useCampus } from '@/context/CampusContext';
 import { useAuth } from '@/context/AuthContext';
+import { isAdminRole } from '@/lib/roles';
 import { useNavigate, useRoute } from '@/lib/router';
 import { CampusMap } from '@/components/CampusMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -210,7 +211,7 @@ export function MapPage() {
     favorites,
     toggleFavorite,
   } = useCampus();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const route = useRoute();
   const go = useNavigate();
 
@@ -725,19 +726,30 @@ export function MapPage() {
     }
   }, [route.params, go]);
 
-  if (loading) return <Spinner label="Chargement du campus…" />;
+  if (loading) {
+    return (
+      <div className="grid h-full place-items-center">
+        <Spinner label="Chargement du campus…" />
+      </div>
+    );
+  }
 
   if (error || !campus) {
     const { title, description } = classifyCampusError(error ?? 'unknown');
     return (
       <div className="grid h-full place-items-center p-6">
-        <EmptyState icon={<MapPin className="h-5 w-5" />} title={title} description={description} />
-        {error && (
-          <details className="mt-4 max-w-md text-left text-xs text-slate-400">
-            <summary className="cursor-pointer select-none">Détail technique</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words">{error}</pre>
-          </details>
-        )}
+        <div className="flex flex-col items-center gap-4">
+          <EmptyState icon={<MapPin className="h-5 w-5" />} title={title} description={description} />
+          <Button variant="secondary" onClick={() => window.location.reload()}>
+            Réessayer
+          </Button>
+          {error && (isAdminRole(profile?.role) || import.meta.env.DEV) && (
+            <details className="max-w-md text-left text-xs text-slate-500">
+              <summary className="cursor-pointer select-none">Détail technique (administrateurs)</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words">{error}</pre>
+            </details>
+          )}
+        </div>
       </div>
     );
   }
@@ -1016,7 +1028,7 @@ export function MapPage() {
             );
           })}
         </div>
-        {usingFallbackProvider && (
+        {usingFallbackProvider && (isAdminRole(profile?.role) || import.meta.env.DEV) && (
           <div className="mt-2 rounded-full bg-amber-100 px-3 py-1 text-center text-[10px] font-semibold text-amber-700 shadow-glass">
             Fournisseur de secours actif
           </div>
@@ -1170,7 +1182,7 @@ export function MapPage() {
           </div>
         )}
 
-        {usingFallbackProvider && (
+        {usingFallbackProvider && (isAdminRole(profile?.role) || import.meta.env.DEV) && (
           <div className="self-start rounded-full bg-amber-100 px-3 py-1 text-[10px] font-semibold text-amber-700 shadow-glass">
             Fournisseur de secours actif
           </div>
@@ -1237,7 +1249,7 @@ export function MapPage() {
           <EmptyState
             icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
             title={mapError}
-            description="Vérifiez la configuration de la carte (variables VITE_MAP_*) ou votre connexion internet, puis réessayez."
+            description="Vérifiez votre connexion internet puis réessayez. Si le problème persiste, contactez l'administration du campus."
           />
           <Button
             className="mt-4"
@@ -1272,7 +1284,7 @@ export function MapPage() {
 
       {/* Feuille de recherche plein écran (mobile & tablette) */}
       {mobileSearchOpen && (
-        <div className="absolute inset-0 z-40 flex flex-col bg-white pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] lg:hidden">
+        <div className="absolute inset-0 z-40 flex flex-col bg-white pt-[env(safe-area-inset-top)] lg:hidden">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-hec-500" />
@@ -1289,7 +1301,7 @@ export function MapPage() {
           <div className="border-b border-slate-100 px-4 py-3">
             <POIFilters active={poiFilter} onChange={setPoiFilter} />
           </div>
-          <div className="flex-1 overflow-hidden p-4">
+          <div className="min-h-0 flex-1 overflow-hidden p-4">
             <LocationSearch locations={locations} recent={recent} onSelect={openLocation} autoFocus />
             {recentError && <p className="mt-2 text-[11px] text-slate-400">{recentError}</p>}
           </div>
@@ -1300,7 +1312,7 @@ export function MapPage() {
       {panelMode !== 'search' && (selected || selectedPoi) && (
         <div className="absolute inset-x-0 bottom-0 z-30 animate-slide-up rounded-t-3xl bg-white shadow-panel motion-reduce:animate-none lg:hidden">
           <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-200" />
-          <div className="max-h-[72vh] overflow-y-auto px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3 md:mx-auto md:max-w-xl">
+          <div className="hec-sheet-body max-h-[58dvh] overflow-y-auto overscroll-contain px-5 pb-6 pt-3 md:mx-auto md:max-w-xl">
             {panelMode === 'poi' && selectedPoi && (
               <ExternalPOIDetail
                 poi={selectedPoi}

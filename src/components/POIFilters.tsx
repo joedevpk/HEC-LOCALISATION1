@@ -28,7 +28,8 @@ export function POIFilters({
         <button
           key={group}
           onClick={() => onChange(group)}
-          className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+          aria-pressed={active === group}
+          className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors [@media(pointer:coarse)]:min-h-[40px] ${
             active === group
               ? 'bg-hec-950 text-white'
               : 'bg-white/70 text-slate-500 hover:bg-white'

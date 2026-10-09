@@ -15,6 +15,7 @@ import {
   Target,
   type LucideIcon,
 } from 'lucide-react';
+import { legalConfig } from '@/lib/legal-config';
 import { useCampus } from '@/context/CampusContext';
 import { EmptyState } from '@/components/ui';
 import { HEC_PHOTOS } from '@/lib/hec-images';
@@ -42,7 +43,7 @@ const sections: Section[] = [
   {
     icon: Search,
     title: 'Fonctionnalités',
-    body: 'Recherche tolérante aux fautes de frappe, fiches détaillées avec photos, favoris, événements, annonces, signalements et assistant intégré.',
+    body: 'Recherche tolérante aux fautes de frappe, fiches détaillées avec photos, favoris, événements, annonces, signalements et assistant de recherche du campus.',
   },
   {
     icon: MapPinned,
@@ -178,19 +179,25 @@ export function AboutPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-100 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-hec-500" aria-hidden="true" />
-            <h2 className="font-display text-lg font-bold text-hec-950">Contacts officiels</h2>
-          </div>
-          <div className="mt-3">
-            <EmptyState
-              icon={<Info className="h-5 w-5" />}
-              title="Contacts à venir"
-              description="Les coordonnées officielles de l'établissement seront ajoutées ici par l'administration."
-            />
-          </div>
-        </section>
+        {(legalConfig.contactEmail || legalConfig.contactPhone || legalConfig.contactAddress) && (
+          <section className="rounded-2xl border border-slate-100 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-hec-500" aria-hidden="true" />
+              <h2 className="font-display text-lg font-bold text-hec-950">Contacts officiels</h2>
+            </div>
+            <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
+              {legalConfig.contactEmail && (
+                <li>
+                  <a className="font-medium text-hec-600 underline-offset-2 hover:underline" href={`mailto:${legalConfig.contactEmail}`}>
+                    {legalConfig.contactEmail}
+                  </a>
+                </li>
+              )}
+              {legalConfig.contactPhone && <li>{legalConfig.contactPhone}</li>}
+              {legalConfig.contactAddress && <li>{legalConfig.contactAddress}</li>}
+            </ul>
+          </section>
+        )}
       </div>
     </div>
   );

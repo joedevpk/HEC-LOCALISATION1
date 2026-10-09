@@ -92,8 +92,8 @@ export function AdminUsersManager() {
       )}
 
       {!error && users && users.length > 0 && (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100">
-          <table className="w-full text-left text-sm">
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100">
+          <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-2.5">Nom</th>

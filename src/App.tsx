@@ -132,7 +132,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="grid h-screen place-items-center bg-slate-50">
+      <div className="grid h-dvh place-items-center bg-slate-50">
         <Spinner label="Chargement…" />
       </div>
     );
@@ -143,7 +143,7 @@ function App() {
   // risquer de montrer brièvement le mauvais tableau de bord.
   if (isAuthenticated && profileLoading) {
     return (
-      <div className="grid h-screen place-items-center bg-slate-50">
+      <div className="grid h-dvh place-items-center bg-slate-50">
         <Spinner label="Chargement du profil…" />
       </div>
     );
@@ -164,21 +164,21 @@ function App() {
   // page d'origine le temps que la navigation se fasse.
   if (isAuthenticated && visitorOnlyRoutes.includes(route.path)) {
     return (
-      <div className="grid h-screen place-items-center bg-slate-50">
+      <div className="grid h-dvh place-items-center bg-slate-50">
         <Spinner label="Redirection…" />
       </div>
     );
   }
   if (!isAuthenticated && !isPublic) {
     return (
-      <div className="grid h-screen place-items-center bg-slate-50">
+      <div className="grid h-dvh place-items-center bg-slate-50">
         <Spinner label="Redirection…" />
       </div>
     );
   }
   if (isAuthenticated && adminRouteBlocked(route.path, profile?.role)) {
     return (
-      <div className="grid h-screen place-items-center bg-slate-50">
+      <div className="grid h-dvh place-items-center bg-slate-50">
         <Spinner label="Redirection…" />
       </div>
     );

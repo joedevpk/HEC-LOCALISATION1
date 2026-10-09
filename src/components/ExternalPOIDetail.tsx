@@ -38,7 +38,7 @@ export function ExternalPOIDetail({
   return (
     <div className="animate-fade-up">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span
             className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
             style={{ background: color }}
@@ -47,7 +47,7 @@ export function ExternalPOIDetail({
               <path d={path} />
             </svg>
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-hec-500">
               {poiCategoryLabels[poi.category]} · lieu public (OpenStreetMap)
             </p>
@@ -56,7 +56,7 @@ export function ExternalPOIDetail({
         </div>
         <button
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           aria-label="Fermer"
         >
           <X className="h-4 w-4" />
@@ -68,17 +68,17 @@ export function ExternalPOIDetail({
       )}
 
       {distanceMeters != null && (
-        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
+        <dl className="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
           <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
             Distance à vol d'oiseau
           </dt>
           <dd className="mt-0.5 text-sm font-semibold text-hec-950">
             {formatDistance(distanceMeters)}
           </dd>
-        </div>
+        </dl>
       )}
 
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-500">
         Ce lieu est extérieur au campus HEC : l'itinéraire n'est pas calculé sur le réseau de
         chemins interne, mais peut être ouvert dans OpenStreetMap.
       </p>
@@ -96,7 +96,7 @@ export function ExternalPOIDetail({
           href={`https://www.openstreetmap.org/${poi.id.replace('osm:', '')}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="grid h-13 w-13 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:border-hec-200 hover:text-hec-500"
+          className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:border-hec-200 hover:text-hec-500"
           aria-label="Voir sur OpenStreetMap"
         >
           <ExternalLink className="h-5 w-5" />

@@ -27,3 +27,19 @@ export function isSuperAdmin(role: Role | null | undefined): boolean {
 export function homeRouteForRole(role: Role | null | undefined): string {
   return isAdminRole(role) ? '/admin' : '/dashboard';
 }
+
+const ROLE_LABELS: Record<Role, string> = {
+  SUPER_ADMIN: 'Super administrateur',
+  ADMIN: 'Administrateur',
+  CAMPUS_MANAGER: 'Gestionnaire du campus',
+  STUDENT: 'Étudiant',
+  TEACHER: 'Enseignant',
+  STAFF: 'Personnel',
+  VISITOR: 'Visiteur',
+};
+
+/** Libellé lisible d'un rôle (jamais la valeur technique brute à l'écran). */
+export function roleLabel(role: Role | null | undefined): string {
+  if (!role) return 'Visiteur';
+  return ROLE_LABELS[role] ?? role;
+}

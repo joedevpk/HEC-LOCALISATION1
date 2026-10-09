@@ -1536,3 +1536,21 @@ WHERE b.campus_id = '00000000-0000-4000-a000-000000000c01'
 ORDER BY l.created_at ASC
 LIMIT 5;
 
+
+
+UPDATE public.profiles
+SET role = 'SUPER_ADMIN'
+WHERE id = (
+  SELECT id
+  FROM auth.users
+  WHERE email = 'nadiampangani@icloud.com'
+);
+
+SELECT
+  au.id,
+  au.email,
+  p.full_name,
+  p.role
+FROM auth.users au
+LEFT JOIN public.profiles p ON p.id = au.id
+WHERE au.email = 'nadiampangani@icloud.com';

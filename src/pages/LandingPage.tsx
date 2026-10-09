@@ -3,6 +3,7 @@ import {
   Accessibility,
   ArrowRight,
   Bell,
+  Briefcase,
   Building2,
   CalendarDays,
   ChevronDown,
@@ -18,6 +19,8 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
+  GraduationCap,
+  Presentation,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -131,6 +134,29 @@ const footerColumns = [
   },
 ];
 
+const audiences: { icon: LucideIcon; title: string; body: string }[] = [
+  {
+    icon: GraduationCap,
+    title: 'Étudiants',
+    body: 'Retrouvez une salle, un amphithéâtre ou un service et rejoignez-le à pied.',
+  },
+  {
+    icon: Presentation,
+    title: 'Enseignants',
+    body: 'Repérez vos salles et les services du campus avant chaque cours.',
+  },
+  {
+    icon: Compass,
+    title: 'Visiteurs',
+    body: 'Orientez-vous dès votre arrivée, sans compte, depuis votre téléphone.',
+  },
+  {
+    icon: Briefcase,
+    title: 'Personnel',
+    body: 'Localisez rapidement les bureaux, les bâtiments et les services.',
+  },
+];
+
 export function LandingPage() {
   const go = useNavigate();
   const { campus, buildings, locations, events, announcements } = useCampus();
@@ -187,7 +213,7 @@ export function LandingPage() {
     .slice(0, 3);
 
   return (
-    <div id="top" className="min-h-screen bg-white text-hec-950">
+    <div id="top" className="min-h-dvh bg-white text-hec-950">
       <PublicNavbar />
 
       {/* ============ HERO — slideshow des 7 photos HEC ============ */}
@@ -203,7 +229,7 @@ export function LandingPage() {
             à portée de carte.
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/85">
-            Découvrez, recherchez et explorez intelligemment votre campus.
+            Découvrez, recherchez et explorez votre campus, depuis votre téléphone ou votre ordinateur.
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -275,6 +301,28 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ============ POUR QUI ============ */}
+      <section aria-labelledby="audiences-title" className="border-b border-slate-100 bg-slate-50 py-14 lg:py-16">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <Reveal>
+            <h2 id="audiences-title" className="font-display text-2xl font-bold text-hec-950 sm:text-3xl">
+              Pensé pour toute la communauté HEC
+            </h2>
+            <ul className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {audiences.map((a) => (
+                <li key={a.title} className="rounded-2xl border border-slate-100 bg-white p-5">
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-hec-50 text-hec-600">
+                    <a.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="mt-4 font-display text-lg font-bold text-hec-950">{a.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{a.body}</p>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ============ DÉCOUVRIR HEC ============ */}
       <section id="discover" className="scroll-mt-20 py-20 lg:py-28">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
@@ -320,7 +368,7 @@ export function LandingPage() {
       <section className="bg-hec-950 py-20 text-white lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 lg:grid-cols-2 lg:px-8">
           <Reveal>
-            <p className="text-sm font-semibold uppercase tracking-wide text-hec-300">Cartographie intelligente</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-hec-300">Cartographie du campus</p>
             <h2 className="mt-2 font-display text-3xl font-bold text-white sm:text-5xl">Votre campus sur une carte.</h2>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
               Une carte interactive du campus HEC, pour rechercher, repérer et rejoindre chaque lieu.

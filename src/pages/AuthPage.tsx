@@ -125,7 +125,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-hec-50/40 dark:from-hec-950 dark:via-hec-950 dark:to-hec-900">
+    <div className="flex min-h-dvh bg-gradient-to-br from-slate-50 via-white to-hec-50/40 dark:from-hec-950 dark:via-hec-950 dark:to-hec-900">
       {/* Panneau visuel (desktop) : vraie photo du campus HEC + voile bleu. */}
       <aside className="relative hidden w-[45%] max-w-[640px] overflow-hidden bg-hec-950 lg:block" aria-hidden="true">
         <img

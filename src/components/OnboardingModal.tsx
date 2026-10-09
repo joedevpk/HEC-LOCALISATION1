@@ -26,11 +26,11 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const screen = screens[step];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-5 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-5 py-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm">
       <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-panel dark:bg-hec-900">
         <button
           onClick={onDone}
-          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-hec-800"
+          className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-hec-800"
           aria-label="Fermer"
         >
           <X className="h-4 w-4" />

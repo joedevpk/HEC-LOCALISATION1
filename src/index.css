@@ -239,3 +239,59 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
 }
+
+/* =====================================================================
+   FINITIONS MOBILE (iPhone / Android)
+   ===================================================================== */
+
+/* Empêche iOS d'agrandir automatiquement la page au focus d'un champ
+   (déclenché quand la police du champ est < 16 px). Limité aux écrans
+   tactiles / étroits : le rendu desktop ne change pas. */
+@media (max-width: 1023px), (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Pas de zoom involontaire par double-tap sur les boutons et liens, et
+   pas de flash gris au toucher. */
+button,
+a,
+[role='button'],
+select,
+summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Jamais de défilement horizontal de la page. `clip` (et non `hidden`) :
+   ne crée pas de conteneur de défilement, donc window.scrollY et les
+   en-têtes sticky continuent de fonctionner. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* Les longues chaînes (e-mails, noms de lieux) ne font pas déborder. */
+h1,
+h2,
+h3,
+p,
+li {
+  overflow-wrap: anywhere;
+}
+
+/* Paysage sur téléphone : les feuilles basses ne mangent pas la carte. */
+@media (max-height: 480px) and (orientation: landscape) {
+  .hec-sheet-body {
+    max-height: 70dvh !important;
+  }
+}

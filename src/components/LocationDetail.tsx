@@ -127,7 +127,7 @@ function LocationGallery({ location }: { location: CampusLocation }) {
             onClick={() => goTo(index - 1)}
             disabled={index === 0}
             aria-label="Photo précédente"
-            className="absolute left-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
+            className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -135,7 +135,7 @@ function LocationGallery({ location }: { location: CampusLocation }) {
             onClick={() => goTo(index + 1)}
             disabled={index === images.length - 1}
             aria-label="Photo suivante"
-            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
+            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -197,14 +197,14 @@ export function LocationDetail({
     <div className="animate-fade-up">
       <LocationGallery location={location} />
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span
             className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
             style={{ background: location.building?.color ?? '#1e5eff' }}
           >
             <Icon className="h-6 w-6" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-hec-500">
               {categoryLabel(location)}
             </p>
@@ -215,7 +215,7 @@ export function LocationDetail({
         </div>
         <button
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-hec-800 dark:hover:text-slate-300"
+          className="-mr-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-hec-800 dark:hover:text-slate-300"
           aria-label="Fermer"
         >
           <X className="h-4 w-4" />
@@ -250,7 +250,7 @@ export function LocationDetail({
         </div>
       )}
 
-      <div className="mt-5 flex items-center gap-2">
+      <div className="sticky bottom-0 -mx-1 mt-5 flex items-center gap-2 bg-white/95 px-1 pb-1 pt-2 backdrop-blur-sm dark:bg-hec-900/95">
         <Button
           size="lg"
           className="flex-1"
@@ -262,8 +262,9 @@ export function LocationDetail({
         {canFavorite && (
           <button
             onClick={onToggleFavorite}
-            aria-label="Favori"
-            className={`grid h-13 w-13 place-items-center rounded-2xl border py-3.5 transition-colors ${
+            aria-label={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+            aria-pressed={isFavorite}
+            className={`grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl border transition-colors ${
               isFavorite
                 ? 'border-red-100 bg-red-50 text-red-500 dark:border-red-900/50 dark:bg-red-950/40'
                 : 'border-slate-200 bg-white text-slate-400 hover:border-red-200 hover:text-red-500 dark:border-hec-800 dark:bg-hec-900 dark:text-slate-500'
@@ -275,7 +276,7 @@ export function LocationDetail({
         <button
           onClick={share}
           aria-label="Partager"
-          className="grid h-13 w-13 place-items-center rounded-2xl border border-slate-200 bg-white py-3.5 text-slate-400 transition-colors hover:border-hec-200 hover:text-hec-500 dark:border-hec-800 dark:bg-hec-900 dark:text-slate-500"
+          className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-colors hover:border-hec-200 hover:text-hec-500 dark:border-hec-800 dark:bg-hec-900 dark:text-slate-500"
         >
           {copied ? (
             <Check className="h-5 w-5 text-emerald-500" />

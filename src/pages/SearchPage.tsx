@@ -154,7 +154,7 @@ export function SearchPage() {
           />
         </div>
       ) : (
-      <div className="mt-6 h-[70vh] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-panel dark:border-slate-800 dark:bg-slate-900">
+      <div className="mt-6 h-[70dvh] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-panel dark:border-slate-800 dark:bg-slate-900">
         <LocationSearch
           locations={scopedLocations}
           recent={recent}

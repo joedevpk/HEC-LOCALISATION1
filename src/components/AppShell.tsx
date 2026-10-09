@@ -20,6 +20,8 @@ import {
   User,
   QrCode,
   GraduationCap,
+  Info,
+  LogIn,
   X,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -27,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCampus } from '@/context/CampusContext';
 import { useSettings } from '@/context/SettingsContext';
 import { useNavigate, useRoute } from '@/lib/router';
-import { isAdminRole, isSuperAdmin } from '@/lib/roles';
+import { isAdminRole, isSuperAdmin, roleLabel } from '@/lib/roles';
 import { getNotifications } from '@/lib/extension-api';
 import { Logo } from '@/components/ui';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -168,12 +170,30 @@ export function AppShell({ children }: { children: ReactNode }) {
     return route.path.startsWith(path);
   };
 
+  // Visiteur non connecté : la barre basse propose « Connexion » plutôt
+  // qu'un « Espace » qui renverrait de toute façon vers la page de connexion,
+  // et le menu « Plus » ne liste que les pages réellement publiques.
+  const bottomNav = session
+    ? mobileNav
+    : [
+        ...mobileNav.slice(0, 3),
+        { path: '/login', labelKey: 'nav.login', icon: LogIn },
+      ];
+  const visitorMoreItems = [
+    { path: '/help', labelKey: 'nav.help', icon: HelpCircle },
+    { path: '/about', labelKey: 'nav.about', icon: Info },
+  ];
+
   // Conserver cette logique : le menu admin dépend uniquement du rôle
   // réellement chargé dans `profile` (contrôlé côté backend, cf. Phase 18).
   const isAdmin = isAdminRole(profile?.role);
   const isSuper = isSuperAdmin(profile?.role);
 
-  const allMoreItems = isAdmin ? [...moreNavItems, ...adminItems] : moreNavItems;
+  const allMoreItems = !session
+    ? visitorMoreItems
+    : isAdmin
+      ? [...moreNavItems, ...adminItems]
+      : moreNavItems;
   const isMoreActive = allMoreItems.some((item) => isActive(item.path));
 
   const adminLabel = (path: string, translated: string) =>
@@ -185,7 +205,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-hec-950">
+    <div className="flex h-dvh overflow-hidden bg-slate-50 dark:bg-hec-950">
       {showOnboarding && <OnboardingModal onDone={dismissOnboarding} />}
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-100 bg-white dark:border-hec-900 dark:bg-hec-900 md:flex">
@@ -287,7 +307,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {profile?.full_name || 'Visiteur'}
               </p>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {profile?.role ?? 'VISITOR'}
+                {roleLabel(profile?.role)}
               </p>
             </div>
             <button
@@ -368,7 +388,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         {profile?.full_name || 'Visiteur'}
                       </p>
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        {profile?.role ?? 'VISITOR'}
+                        {roleLabel(profile?.role)}
                       </p>
                     </div>
                     <div className="my-1 border-t border-slate-100 dark:border-hec-800" />
@@ -410,7 +430,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       </div>
 
       {/* Mobile "Plus" sheet: full menu with every section */}
@@ -421,7 +441,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setMoreOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative max-h-[80vh] overflow-y-auto rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-panel dark:bg-hec-900">
+          <div className="relative max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-panel dark:bg-hec-900">
             <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-hec-800 dark:bg-hec-900">
               <span className="font-display text-base font-bold text-hec-950 dark:text-white">
                 Menu
@@ -438,8 +458,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               {allMoreItems.map((item) => (
                 <button
                   key={item.path}
-                  onClick={() => go(item.path)}
-                  className={`relative flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center text-xs font-semibold transition-colors ${
+                  onClick={() => {
+                    setMoreOpen(false);
+                    go(item.path);
+                  }}
+                  className={`relative flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl px-2 py-4 text-center text-xs font-semibold transition-colors ${
                     isActive(item.path)
                       ? 'bg-hec-950 text-white dark:bg-hec-700'
                       : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-hec-800 dark:text-slate-300'
@@ -481,7 +504,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {profile?.full_name || 'Visiteur'}
                   </p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {profile?.role ?? 'VISITOR'}
+                    {roleLabel(profile?.role)}
                   </p>
                 </div>
                 <button
@@ -498,13 +521,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-100 bg-white/95 px-2 py-1.5 backdrop-blur dark:border-hec-800 dark:bg-hec-900/95 md:hidden">
-        {mobileNav.map((item) => (
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-100 bg-white/95 px-2 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur dark:border-hec-800 dark:bg-hec-900/95 md:hidden">
+        {bottomNav.map((item) => (
           <button
             key={item.path}
             onClick={() => go(item.path)}
             aria-current={isActive(item.path) ? 'page' : undefined}
-            className={`relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-colors ${
+            className={`relative flex min-h-[48px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors ${
               isActive(item.path)
                 ? 'text-hec-600 dark:text-hec-400'
                 : 'text-slate-400 dark:text-slate-500'
@@ -520,7 +543,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button
           onClick={() => setMoreOpen(true)}
           aria-expanded={moreOpen}
-          className={`relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-colors ${
+          className={`relative flex min-h-[48px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-semibold transition-colors ${
             isMoreActive ? 'text-hec-600 dark:text-hec-400' : 'text-slate-400 dark:text-slate-500'
           }`}
         >

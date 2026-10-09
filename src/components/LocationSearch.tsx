@@ -198,12 +198,14 @@ export function LocationSearch({
           aria-autocomplete="list"
           aria-activedescendant={activeOptionId}
           autoComplete="off"
-          className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-10 text-sm font-medium text-hec-950 shadow-sm placeholder:text-slate-400 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
+          enterKeyHint="search"
+          inputMode="search"
+          className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-12 text-sm font-medium text-hec-950 shadow-sm placeholder:text-slate-400 focus:border-hec-400 focus:outline-none focus:ring-4 focus:ring-hec-100"
         />
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
+            className="absolute right-1.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-slate-500 hover:bg-slate-100"
             aria-label="Effacer"
           >
             <X className="h-4 w-4" />
@@ -216,7 +218,7 @@ export function LocationSearch({
           type="button"
           onClick={toggleNearby}
           aria-pressed={nearbyMode}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+          className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
             nearbyMode
               ? 'border-hec-400 bg-hec-50 text-hec-700'
               : 'border-slate-200 bg-white text-slate-600 hover:border-hec-200 hover:text-hec-600'
@@ -243,7 +245,7 @@ export function LocationSearch({
                 <button
                   key={r}
                   onClick={() => setQuery(r)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:border-hec-200 hover:text-hec-600"
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:border-hec-200 hover:text-hec-600"
                 >
                   <Clock className="h-3.5 w-3.5 text-slate-400" />
                   {r}
@@ -272,7 +274,7 @@ export function LocationSearch({
         {suggestion && (
           <button
             onClick={() => setQuery(suggestion.name)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-hec-200 bg-hec-50 px-3 py-1.5 text-sm font-medium text-hec-700 hover:bg-hec-100"
+            className="mt-2 inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-hec-200 bg-hec-50 px-3 py-1.5 text-sm font-medium text-hec-700 hover:bg-hec-100"
           >
             Vouliez-vous dire « {suggestion.name} » ?
           </button>

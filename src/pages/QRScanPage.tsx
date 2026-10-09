@@ -70,7 +70,7 @@ export function QRScanPage() {
   }, [code, campusLoading, locations]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-dvh flex-col bg-slate-50">
       <header className="flex justify-center border-b border-slate-100 bg-white px-5 py-4">
         <Logo />
       </header>
