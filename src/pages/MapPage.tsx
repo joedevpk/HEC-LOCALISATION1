@@ -23,7 +23,7 @@ import type { CampusLocation } from '@/lib/types';
 import { isValidLatitude, isValidLongitude } from '@/lib/geo-validation';
 import type { ExternalPOI, POIFilterGroup } from '@/lib/poi-categories';
 import { poiCategoryToFilterGroup } from '@/lib/poi-categories';
-import { fetchExternalPOIs, isUserAbort } from '@/lib/osm-poi';
+import { fetchExternalPOIs, isPoiResultTruncated, isUserAbort } from '@/lib/osm-poi';
 import { useCampus } from '@/context/CampusContext';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminRole } from '@/lib/roles';
@@ -35,6 +35,17 @@ import { ExternalPOIDetail } from '@/components/ExternalPOIDetail';
 import { LocationSearch } from '@/components/LocationSearch';
 import { POIFilters } from '@/components/POIFilters';
 import { RoutePanel } from '@/components/RoutePanel';
+import { readFallbackCampus, type FallbackReason } from '@/lib/map-resilience';
+import { PlaceSearchSection } from '@/components/PlaceSearchSection';
+import { usePlaceSearch } from '@/lib/use-place-search';
+import type { PlaceResult } from '@/lib/geocoding';
+import {
+  WalkingRouteError,
+  fetchWalkingRoute,
+  shouldKeepExternalRoute,
+  isWalkingRouterConfigured,
+  resolveWalkingRouter,
+} from '@/lib/walking-route';
 import { Button, EmptyState, Spinner } from '@/components/ui';
 import {
   findRoute,
@@ -99,6 +110,34 @@ function buildingEntryPoint(
     forBuilding[0] ??
     null
   );
+}
+
+// Centre de secours (configuré par l'administration) pour une carte générale sans Supabase.
+const FALLBACK_CAMPUS = readFallbackCampus(import.meta.env as Record<string, unknown>);
+
+// Moteur d'itinéraire piéton externe (hors réseau du campus) : lu une fois.
+const WALKING_ROUTER = resolveWalkingRouter();
+const WALKING_ROUTER_ON = isWalkingRouterConfigured(WALKING_ROUTER);
+// Un nouveau calcul externe n'est lancé que si le départ a bougé de plus de
+// cette distance (protège le quota du service pendant la marche).
+const EXTERNAL_REROUTE_MIN_MOVE_M = 40;
+
+/** Destination « lieu public » : même forme qu'un lieu du campus, sans bâtiment ni étage. */
+function syntheticDestination(poi: ExternalPOI): CampusLocation {
+  return {
+    id: `__ext__${poi.id}`,
+    building_id: null,
+    floor_id: null,
+    name: poi.name,
+    code: '',
+    kind: 'poi',
+    category: 'lieu public',
+    description: poi.description ?? '',
+    capacity: null,
+    lng: poi.lng,
+    lat: poi.lat,
+    is_accessible: true,
+  };
 }
 
 function syntheticOrigin(lngLat: [number, number], label: string): CampusLocation {
@@ -171,7 +210,18 @@ const geoStatusShortLabel: Record<GeoStatus, string> = {
  * qu'en texte, jamais tracée sur la carte (voir routeCoordinates plus
  * bas, qui ne reçoit que route.coordinates d'une VRAIE route calculée).
  */
-function routeErrorMessage(err: RouteError): string {
+function routeErrorMessage(err: RouteError, externalNote?: string | null): string {
+  // Échec du service d'itinéraire externe : son message précis prime.
+  if (externalNote) return externalNote;
+  const msg = campusRouteErrorMessage(err);
+  const outOfNetwork =
+    err.code === 'ROUTE_NETWORK_MISSING' || err.code === 'ROUTE_NETWORK_UNREACHABLE' || err.code === 'ROUTE_NOT_FOUND';
+  return outOfNetwork && !WALKING_ROUTER_ON
+    ? `${msg} Le calcul d'itinéraire piéton hors campus n'est pas activé sur ce serveur.`
+    : msg;
+}
+
+function campusRouteErrorMessage(err: RouteError): string {
   const asTheCrowFlies =
     typeof err.straightLineDistanceMeters === 'number'
       ? ` (distance à vol d'oiseau : environ ${Math.round(err.straightLineDistanceMeters)} m, non affichée sur la carte)`
@@ -247,8 +297,18 @@ export function MapPage() {
   const [desktopPanelOpen, setDesktopPanelOpen] = useState(true);
 
   const [styleMode, setStyleMode] = useState<MapStyleMode>('plan');
+  // Message affiché quand un mode demandé n'existe pas chez le fournisseur (la carte garde son fond).
+  const [modeNotice, setModeNotice] = useState<{ requested: MapStyleMode; detail: string } | null>(null);
+  const [requestedMode, setRequestedMode] = useState<MapStyleMode>('plan');
+  const selectStyleMode = useCallback((mode: MapStyleMode) => {
+    setModeNotice(null);
+    setRequestedMode(mode);
+    setStyleMode(mode);
+  }, []);
   const [usingFallbackProvider, setUsingFallbackProvider] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState<FallbackReason | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapErrorKind, setMapErrorKind] = useState<'config' | 'network'>('network');
   const [mapKey, setMapKey] = useState(0);
   const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -277,6 +337,7 @@ export function MapPage() {
   const [externalPois, setExternalPois] = useState<ExternalPOI[]>([]);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string | null>(null);
+  const [poiTruncated, setPoiTruncated] = useState(false);
   const [poiFilter, setPoiFilter] = useState<POIFilterGroup>('all');
   const [selectedPoi, setSelectedPoi] = useState<ExternalPOI | null>(null);
   const mapInstanceRef = useRef<MLMap | null>(null);
@@ -318,18 +379,26 @@ export function MapPage() {
   // montrer (le filtre "HEC" masque volontairement tous les POI publics).
   const showExternalPois = poiFilter !== 'hec';
 
-  const loadPoisForCurrentView = useCallback(() => {
+  const loadPoisForCurrentView = useCallback((force = false) => {
     const map = mapInstanceRef.current;
     if (!map) return;
+    // Vue trop large (carte dézoomée) : rien d'utile à chercher autour d'un
+    // campus, et pas de requête inutile vers le service public.
+    if (map.getZoom() < 13) {
+      poiAbortRef.current?.abort();
+      poiAbortRef.current = null;
+      setPoiLoading(false);
+      setPoiError(null);
+      setPoiTruncated(false);
+      return;
+    }
     const b = map.getBounds();
     poiAbortRef.current?.abort();
     const controller = new AbortController();
     poiAbortRef.current = controller;
     setPoiLoading(true);
-    fetchExternalPOIs(
-      { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
-      controller.signal,
-    )
+    const viewBbox = { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
+    fetchExternalPOIs(viewBbox, controller.signal, { force })
       .then((pois) => {
         // Requête périmée (une plus récente a déjà pris sa place) : ne
         // touche pas à l'état, sous peine d'écraser le résultat/l'erreur
@@ -337,6 +406,7 @@ export function MapPage() {
         if (poiAbortRef.current !== controller) return;
         setExternalPois(pois);
         setPoiError(null);
+        setPoiTruncated(isPoiResultTruncated(viewBbox));
       })
       .catch((err: Error) => {
         if (poiAbortRef.current !== controller) return;
@@ -367,7 +437,7 @@ export function MapPage() {
         // Debounce (ÉTAPE 17) : on attend que l'utilisateur arrête de
         // bouger la carte avant d'interroger Overpass, jamais à chaque
         // frame de déplacement.
-        poiDebounceRef.current = window.setTimeout(loadPoisForCurrentView, 700);
+        poiDebounceRef.current = window.setTimeout(() => loadPoisForCurrentView(), 700);
       };
       map.on('moveend', onMoveEnd);
       // Le listener doit être retiré si la carte est recréée/démontée,
@@ -378,16 +448,61 @@ export function MapPage() {
   );
 
   const filteredExternalPois = useMemo(() => {
-    if (!showExternalPois) return [];
-    if (poiFilter === 'all') return externalPois;
-    return externalPois.filter((p) => poiCategoryToFilterGroup[p.category] === poiFilter);
-  }, [externalPois, poiFilter, showExternalPois]);
+    const base = !showExternalPois
+      ? []
+      : poiFilter === 'all'
+        ? externalPois
+        : externalPois.filter((p) => poiCategoryToFilterGroup[p.category] === poiFilter);
+    // Un lieu choisi via la recherche reste visible sur la carte tant qu'il est sélectionné.
+    return selectedPoi?.source === 'geocoder' && !base.some((p) => p.id === selectedPoi.id)
+      ? [...base, selectedPoi]
+      : base;
+  }, [externalPois, poiFilter, showExternalPois, selectedPoi]);
 
   const openExternalPoi = useCallback((poi: ExternalPOI) => {
     setSelectedPoi(poi);
     setPanelMode('poi');
     setMobileSearchOpen(false);
   }, []);
+
+  // --- Recherche géographique réelle (rues, établissements, lieux publics) ---
+  const [placeQuery, setPlaceQuery] = useState('');
+  const placeProximity = useMemo<[number, number] | undefined>(
+    () => {
+      const c = campus ?? FALLBACK_CAMPUS;
+      return c ? [c.center_lng, c.center_lat] : undefined;
+    },
+    [campus],
+  );
+  const placeSearch = usePlaceSearch(placeQuery, placeProximity);
+
+  const pickPlace = useCallback(
+    (place: PlaceResult) => {
+      const poi: ExternalPOI = {
+        id: `geo:${place.id}`,
+        name: place.name,
+        category: 'other',
+        lng: place.lng,
+        lat: place.lat,
+        description: place.label !== place.name ? place.label : undefined,
+        source: 'geocoder',
+      };
+      openExternalPoi(poi);
+      const map = mapInstanceRef.current;
+      map?.flyTo({
+        center: [place.lng, place.lat],
+        zoom: Math.min(Math.max(map.getZoom(), 16.5), map.getMaxZoom()),
+        duration: 900,
+        essential: true,
+      });
+    },
+    [openExternalPoi],
+  );
+
+  // --- Itinéraire piéton hors campus (service externe, voir lib/walking-route) ---
+  const [externalRouting, setExternalRouting] = useState(false);
+  const [externalRouteNote, setExternalRouteNote] = useState<string | null>(null);
+  const lastExternalRouteRef = useRef<{ destId: string; origin: [number, number] } | null>(null);
 
   const poiLocations = useMemo(
     () => locations.filter((l) => !l.building_id || l.kind !== 'room'),
@@ -631,6 +746,21 @@ export function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params, locations]);
 
+  // Calcul externe en cours (voir l'effet ci-dessous) : conservé tant que la destination est la même.
+  const pendingExternalRef = useRef<{
+    destId: string;
+    origin: [number, number];
+    controller: AbortController;
+    timer: number;
+  } | null>(null);
+  const cancelPendingExternal = useCallback(() => {
+    const p = pendingExternalRef.current;
+    if (!p) return;
+    window.clearTimeout(p.timer);
+    p.controller.abort();
+    pendingExternalRef.current = null;
+  }, []);
+
   // Compute route when origin/destination/accessible change. Utilise le
   // graphe reel du campus (route_nodes/route_segments) quand disponible.
   // findRoute() (lib/nav.ts) ne renvoie JAMAIS une route fictive : en cas
@@ -643,6 +773,10 @@ export function MapPage() {
       setRouteResult(null);
       setRouteError(null);
       setNavigationActive(false);
+      setExternalRouting(false);
+      setExternalRouteNote(null);
+      lastExternalRouteRef.current = null;
+      cancelPendingExternal();
       return;
     }
     // Réseau piéton encore en chargement : on attend au lieu d'afficher à
@@ -656,11 +790,78 @@ export function MapPage() {
     if (outcome.ok) {
       setRouteResult(outcome.route);
       setRouteError(null);
-    } else {
+      setExternalRouting(false);
+      setExternalRouteNote(null);
+      lastExternalRouteRef.current = null;
+      cancelPendingExternal();
+      return;
+    }
+    // Hors du réseau interne du campus : repli sur un VRAI moteur de routage
+    // piéton, seulement s'il est configuré. Sinon on affiche l'erreur honnête.
+    const outOfCampusNetwork =
+      outcome.error.code === 'ROUTE_NETWORK_MISSING' ||
+      outcome.error.code === 'ROUTE_NETWORK_UNREACHABLE' ||
+      outcome.error.code === 'ROUTE_NOT_FOUND';
+    if (!outOfCampusNetwork || !WALKING_ROUTER_ON) {
       setRouteResult(null);
       setRouteError(outcome.error);
+      setExternalRouting(false);
+      setExternalRouteNote(null);
+      lastExternalRouteRef.current = null;
+      cancelPendingExternal();
+      return;
     }
-  }, [panelMode, origin, selected, accessible, routeNodes, routeSegments, routingLoading]);
+    const from: [number, number] = [origin.lng, origin.lat];
+    const to: [number, number] = [selected.lng, selected.lat];
+    const last = lastExternalRouteRef.current;
+    // Même trajet et départ quasi inchangé (bruit GPS) : on garde le tracé affiché OU le calcul
+    // déjà en cours, sans l'annuler (voir shouldKeepExternalRoute).
+    if (
+      shouldKeepExternalRoute({
+        last,
+        pending: pendingExternalRef.current,
+        destId: selected.id,
+        from,
+        minMoveM: EXTERNAL_REROUTE_MIN_MOVE_M,
+      })
+    ) {
+      return;
+    }
+    cancelPendingExternal();
+    const controller = new AbortController();
+    setExternalRouting(true);
+    setRouteResult(null);
+    setRouteError(null);
+    setExternalRouteNote(null);
+    const timer = window.setTimeout(() => {
+      fetchWalkingRoute(from, to, { signal: controller.signal, config: WALKING_ROUTER })
+        .then((route) => {
+          if (controller.signal.aborted) return;
+          lastExternalRouteRef.current = { destId: selected.id, origin: from };
+          setRouteResult(route);
+          setRouteError(null);
+          setExternalRouteNote(null);
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return;
+          lastExternalRouteRef.current = null;
+          setRouteResult(null);
+          setRouteError(outcome.error);
+          setExternalRouteNote(
+            err instanceof WalkingRouteError ? err.message : "Impossible de calculer l'itinéraire piéton.",
+          );
+        })
+        .finally(() => {
+          if (pendingExternalRef.current?.controller === controller) pendingExternalRef.current = null;
+          if (!controller.signal.aborted) setExternalRouting(false);
+        });
+    }, 400);
+    pendingExternalRef.current = { destId: selected.id, origin: from, controller, timer };
+    // Pas de cleanup qui annule : un re-rendu dû au bruit GPS ne doit pas tuer le calcul en cours.
+    // L'annulation se fait explicitement (changement de destination/mode, démontage).
+  }, [panelMode, origin, selected, accessible, routeNodes, routeSegments, routingLoading, cancelPendingExternal]);
+
+  useEffect(() => cancelPendingExternal, [cancelPendingExternal]);
 
   // Navigation active : suivi hors-itinéraire + recalcul sûr (ÉTAPE
   // routing #11/12). Réutilise le geoFix déjà mis à jour par le suivi GPS
@@ -706,6 +907,11 @@ export function MapPage() {
     [selectRouteDestination],
   );
 
+  const startExternalRoute = useCallback(
+    (poi: ExternalPOI) => selectRouteDestination(syntheticDestination(poi)),
+    [selectRouteDestination],
+  );
+
   const openLocation = useCallback(
     (loc: CampusLocation) => selectDestination(loc),
     [selectDestination],
@@ -734,7 +940,10 @@ export function MapPage() {
     );
   }
 
-  if (error || !campus) {
+  // Supabase indisponible : si l'administration a configuré un centre de secours,
+  // on affiche la carte générale (fond + recherche + itinéraires hors campus).
+  const generalOnly = !campus && !!error && FALLBACK_CAMPUS !== null;
+  if ((error || !campus) && !generalOnly) {
     const { title, description } = classifyCampusError(error ?? 'unknown');
     return (
       <div className="grid h-full place-items-center p-6">
@@ -754,11 +963,13 @@ export function MapPage() {
     );
   }
 
+  const activeCampus = (campus ?? FALLBACK_CAMPUS) as NonNullable<typeof campus>;
+
   // Garde-fou : un centre de campus non configuré (coordonnées absentes ou
   // hors bornes valides) ne doit jamais créer la carte avec une position
   // inventée (ex. (0,0)) — on affiche un état explicite à la place, en
   // attendant qu'un administrateur configure la position réelle du campus.
-  if (!isValidLongitude(campus.center_lng) || !isValidLatitude(campus.center_lat)) {
+  if (!isValidLongitude(activeCampus.center_lng) || !isValidLatitude(activeCampus.center_lat)) {
     return (
       <div className="grid h-full place-items-center p-6">
         <EmptyState
@@ -770,6 +981,73 @@ export function MapPage() {
     );
   }
 
+  // Supabase indisponible : seule la carte générale est active (voir FALLBACK_CAMPUS).
+  const generalOnlyBanner = generalOnly ? (
+    <div
+      role="status"
+      className="mt-2 max-w-[260px] self-start rounded-2xl bg-amber-100 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800 shadow-glass"
+    >
+      Données du campus indisponibles : seule la carte générale est affichée (recherche de lieux et itinéraires hors campus).
+      Les bâtiments et salles du campus reviendront à la prochaine actualisation.
+    </div>
+  ) : null;
+
+  // Fond dégradé : TOUS les utilisateurs doivent savoir qu'ils voient un plan
+  // standard de secours (et non l'imagerie/le style demandé). Le détail
+  // technique (clé, domaine, quota) n'est montré qu'aux administrateurs.
+  const modeNoticeBanner = modeNotice ? (
+    <div
+      role="status"
+      className="mt-2 flex max-w-[260px] flex-col gap-1 self-start rounded-2xl bg-amber-100 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800 shadow-glass"
+    >
+      <span>
+        Le mode « {mapStyleLabels[modeNotice.requested]} » n&apos;est pas disponible avec le fournisseur de carte
+        actuel : le mode « {mapStyleLabels[styleMode]} » reste affiché.
+      </span>
+      {(isAdminRole(profile?.role) || import.meta.env.DEV) && (
+        <span className="text-[10px] font-normal">Admin : {modeNotice.detail}</span>
+      )}
+      <button
+        type="button"
+        onClick={() => setModeNotice(null)}
+        className="min-h-[32px] self-start rounded-full bg-white/80 px-3 text-[11px] font-semibold text-amber-900 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+      >
+        Compris
+      </button>
+    </div>
+  ) : null;
+
+  const fallbackBanner = usingFallbackProvider ? (
+    <div
+      role="status"
+      className="mt-2 flex max-w-[260px] flex-col gap-1 self-start rounded-2xl bg-amber-100 px-3 py-2 text-[11px] font-medium leading-snug text-amber-800 shadow-glass"
+    >
+      <span>
+        Fond de carte de secours (plan standard) : le mode « {mapStyleLabels[styleMode]} » est momentanément
+        indisponible.
+      </span>
+      {(isAdminRole(profile?.role) || import.meta.env.DEV) && fallbackReason === 'access' && (
+        <span className="text-[10px] font-normal">
+          Admin : accès refusé par le fournisseur (clé API, restriction de domaine ou quota) — voir les variables
+          VITE_MAP_* sur Render.
+        </span>
+      )}
+      {(isAdminRole(profile?.role) || import.meta.env.DEV) && fallbackReason === 'style' && (
+        <span className="text-[10px] font-normal">
+          Admin : le style de ce mode est introuvable ou illisible chez le fournisseur (identifiant de style absent
+          de votre plan ?) — vérifiez VITE_MAP_STYLE_ID_* ou choisissez un autre style.
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => setMapKey((k) => k + 1)}
+        className="min-h-[32px] self-start rounded-full bg-white/80 px-3 text-[11px] font-semibold text-amber-900 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+      >
+        Réessayer le fond de carte
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-slate-100">
       <ErrorBoundary
@@ -778,7 +1056,7 @@ export function MapPage() {
       >
         <CampusMap
           key={mapKey}
-          campus={campus}
+          campus={activeCampus}
           buildings={buildings}
           poiLocations={poiLocations}
           externalPois={filteredExternalPois}
@@ -810,9 +1088,19 @@ export function MapPage() {
             setGeoStatus(code === 1 ? 'denied' : 'unavailable');
             setGeoMessage(message);
           }}
-          onMapError={setMapError}
+          onMapError={(message, kind) => {
+            setMapErrorKind(kind ?? 'network');
+            setMapError(message);
+          }}
           onMapReady={handleMapReady}
-          onFallbackProvider={setUsingFallbackProvider}
+          onStyleModeRejected={(appliedMode, detail) => {
+            setModeNotice({ requested: requestedMode, detail });
+            setStyleMode(appliedMode);
+          }}
+          onFallbackProvider={(active, reason) => {
+            setUsingFallbackProvider(active);
+            setFallbackReason(active ? (reason ?? 'network') : null);
+          }}
           onGeolocateControlReady={(trigger) => {
             geolocateTriggerRef.current = trigger;
           }}
@@ -860,9 +1148,9 @@ export function MapPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <h1 className="truncate font-display text-base font-bold leading-tight text-hec-950">
-                  {campus.name}
+                  {activeCampus.name}
                 </h1>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{campus.tagline}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{activeCampus.tagline}</p>
               </div>
               <div
                 className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"
@@ -897,7 +1185,13 @@ export function MapPage() {
 
             {panelMode === 'search' && (
               <>
-                <LocationSearch locations={locations} recent={recent} onSelect={openLocation} />
+                <LocationSearch
+                  locations={locations}
+                  recent={recent}
+                  onSelect={openLocation}
+                  onQueryChange={setPlaceQuery}
+                  footer={<PlaceSearchSection query={placeQuery} search={placeSearch} onPick={pickPlace} />}
+                />
                 {recentError && (
                   <p className="mt-2 text-[11px] text-slate-400">{recentError}</p>
                 )}
@@ -910,6 +1204,7 @@ export function MapPage() {
                 userLng={geoFix?.lng}
                 userLat={geoFix?.lat}
                 onClose={closePanel}
+                onRoute={WALKING_ROUTER_ON ? () => startExternalRoute(selectedPoi) : undefined}
               />
             )}
 
@@ -924,7 +1219,7 @@ export function MapPage() {
               />
             )}
 
-            {panelMode === 'route' && selected && origin && !routeResult && !routeError && routingLoading && (
+            {panelMode === 'route' && selected && origin && !routeResult && !routeError && (routingLoading || externalRouting) && (
               <div className="flex items-center gap-2 py-6 text-sm text-slate-500" role="status">
                 <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Chargement du réseau piéton…
@@ -936,7 +1231,7 @@ export function MapPage() {
                 origin={origin}
                 destination={selected}
                 route={routeResult}
-                error={routeError ? routeErrorMessage(routeError) : null}
+                error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}
@@ -1010,11 +1305,12 @@ export function MapPage() {
         <div className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/95 p-1 shadow-glass backdrop-blur-sm">
           {MAP_STYLE_MODES.map((mode) => {
             const Icon = styleModeIcons[mode];
-            const active = styleMode === mode;
+            // En secours, seul le plan standard est réellement affiché.
+            const active = usingFallbackProvider ? mode === 'plan' : styleMode === mode;
             return (
               <button
                 key={mode}
-                onClick={() => setStyleMode(mode)}
+                onClick={() => selectStyleMode(mode)}
                 title={mapStyleLabels[mode]}
                 aria-label={mapStyleLabels[mode]}
                 aria-pressed={active}
@@ -1028,11 +1324,9 @@ export function MapPage() {
             );
           })}
         </div>
-        {usingFallbackProvider && (isAdminRole(profile?.role) || import.meta.env.DEV) && (
-          <div className="mt-2 rounded-full bg-amber-100 px-3 py-1 text-center text-[10px] font-semibold text-amber-700 shadow-glass">
-            Fournisseur de secours actif
-          </div>
-        )}
+        {generalOnlyBanner}
+        {fallbackBanner}
+        {modeNoticeBanner}
       </div>
 
       {/* Bouton "Ma position" + précision GPS, en pile verticale à droite */}
@@ -1132,7 +1426,7 @@ export function MapPage() {
           >
             <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-hec-950">
-              {campus.name}
+              {activeCampus.name}
             </span>
             <span className="shrink-0 text-[10px] font-medium text-emerald-700">Actif</span>
             <ChevronDown
@@ -1143,7 +1437,7 @@ export function MapPage() {
           </button>
           {mobileCampusOpen && (
             <div className="mt-1.5 animate-fade-up rounded-2xl border border-slate-200/70 bg-white/95 px-3.5 py-3 shadow-glass backdrop-blur-sm">
-              <p className="text-xs text-slate-500">{campus.tagline}</p>
+              <p className="text-xs text-slate-500">{activeCampus.tagline}</p>
             </div>
           )}
         </div>
@@ -1157,13 +1451,14 @@ export function MapPage() {
             >
               {MAP_STYLE_MODES.map((mode) => {
                 const Icon = styleModeIcons[mode];
-                const active = styleMode === mode;
+                // En secours, seul le plan standard est réellement affiché.
+            const active = usingFallbackProvider ? mode === 'plan' : styleMode === mode;
                 return (
                   <button
                     key={mode}
                     role="tab"
                     aria-selected={active}
-                    onClick={() => setStyleMode(mode)}
+                    onClick={() => selectStyleMode(mode)}
                     aria-label={mapStyleLabels[mode]}
                     className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hec-500 ${
                       active ? 'bg-hec-950 text-white' : 'text-slate-500'
@@ -1182,11 +1477,9 @@ export function MapPage() {
           </div>
         )}
 
-        {usingFallbackProvider && (isAdminRole(profile?.role) || import.meta.env.DEV) && (
-          <div className="self-start rounded-full bg-amber-100 px-3 py-1 text-[10px] font-semibold text-amber-700 shadow-glass">
-            Fournisseur de secours actif
-          </div>
-        )}
+        {generalOnlyBanner}
+        {fallbackBanner}
+        {modeNoticeBanner}
       </div>
 
       {/* Statut GPS compact mobile/tablette : n'apparaît que s'il y a
@@ -1221,7 +1514,7 @@ export function MapPage() {
 
       {/* État de chargement / erreur des POI publics — discret, jamais bloquant
           (ÉTAPE 18 : jamais silencieux, jamais de faux lieu affiché à la place) */}
-      {showExternalPois && (poiLoading || poiError) && (
+      {showExternalPois && (poiLoading || poiError || poiTruncated) && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-20 flex justify-center lg:bottom-6 lg:left-[416px] lg:right-auto lg:justify-start lg:pl-2">
           <div className="pointer-events-auto">
             {poiLoading && (
@@ -1230,9 +1523,15 @@ export function MapPage() {
                 Recherche des lieux à proximité…
               </div>
             )}
+            {!poiLoading && !poiError && poiTruncated && (
+              <div className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700 shadow-glass">
+                <AlertTriangle className="h-3 w-3" />
+                Liste de lieux incomplète dans cette zone · zoomez pour affiner
+              </div>
+            )}
             {!poiLoading && poiError && (
               <button
-                onClick={loadPoisForCurrentView}
+                onClick={() => loadPoisForCurrentView(true)}
                 className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700 shadow-glass focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 <AlertTriangle className="h-3 w-3" />
@@ -1249,7 +1548,11 @@ export function MapPage() {
           <EmptyState
             icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
             title={mapError}
-            description="Vérifiez votre connexion internet puis réessayez. Si le problème persiste, contactez l'administration du campus."
+            description={
+              mapErrorKind === 'config'
+                ? "La carte n'est pas configurée correctement sur ce serveur. Contactez l'administration du campus."
+                : "Vérifiez votre connexion internet puis réessayez. Si le problème persiste, contactez l'administration du campus."
+            }
           />
           <Button
             className="mt-4"
@@ -1302,7 +1605,14 @@ export function MapPage() {
             <POIFilters active={poiFilter} onChange={setPoiFilter} />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden p-4">
-            <LocationSearch locations={locations} recent={recent} onSelect={openLocation} autoFocus />
+            <LocationSearch
+              locations={locations}
+              recent={recent}
+              onSelect={openLocation}
+              autoFocus
+              onQueryChange={setPlaceQuery}
+              footer={<PlaceSearchSection query={placeQuery} search={placeSearch} onPick={pickPlace} />}
+            />
             {recentError && <p className="mt-2 text-[11px] text-slate-400">{recentError}</p>}
           </div>
         </div>
@@ -1319,6 +1629,7 @@ export function MapPage() {
                 userLng={geoFix?.lng}
                 userLat={geoFix?.lat}
                 onClose={closePanel}
+                onRoute={WALKING_ROUTER_ON ? () => startExternalRoute(selectedPoi) : undefined}
               />
             )}
 
@@ -1333,7 +1644,7 @@ export function MapPage() {
               />
             )}
 
-            {panelMode === 'route' && selected && origin && !routeResult && !routeError && routingLoading && (
+            {panelMode === 'route' && selected && origin && !routeResult && !routeError && (routingLoading || externalRouting) && (
               <div className="flex items-center gap-2 py-6 text-sm text-slate-500" role="status">
                 <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Chargement du réseau piéton…
@@ -1345,7 +1656,7 @@ export function MapPage() {
                 origin={origin}
                 destination={selected}
                 route={routeResult}
-                error={routeError ? routeErrorMessage(routeError) : null}
+                error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}

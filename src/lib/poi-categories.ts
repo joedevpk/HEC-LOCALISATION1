@@ -48,7 +48,8 @@ export interface ExternalPOI {
   lng: number;
   lat: number;
   description?: string;
-  source: 'osm';
+  /** 'osm' : lieu public chargé via Overpass ; 'geocoder' : résultat de la recherche géographique. */
+  source: 'osm' | 'geocoder';
 }
 
 /** Regroupement pour la barre de filtres (ÉTAPE 10) — moins de boutons

@@ -5,7 +5,25 @@ import type { ExternalPOI } from '@/lib/poi-categories';
 import { toGeoFix, type GeoFix } from '@/lib/geolocation';
 import { haversine } from '@/lib/nav';
 import { toLngLat } from '@/lib/geo-validation';
-import { getMapStyle, mapStyleLabels, type MapStyleMode } from '@/lib/map-config';
+import {
+  MapConfigError,
+  getMapStyle,
+  getMapViewOptions,
+  mapStyleLabels,
+  type MapStyleMode,
+} from '@/lib/map-config';
+import {
+  classifyMapError,
+  decideMapErrorAction,
+  effectiveMaxZoom,
+  focusZoom,
+  fallbackReasonFor,
+  isBaseMapSource,
+  maskSecretsInUrl,
+  pickTextFont,
+  type FallbackReason,
+  type MapErrorKind,
+} from '@/lib/map-resilience';
 import { loadPoiIcons, poiIconId, attachMissingIconFallback } from '@/lib/poi-icon-sprites';
 
 type RouteFeature = {
@@ -43,9 +61,17 @@ interface CampusMapProps {
   onManualPick: (lngLat: [number, number]) => void;
   onGeolocate: (fix: GeoFix) => void;
   onGeolocateError: (message: string, code?: number) => void;
-  onMapError: (message: string) => void;
+  /** `kind` = 'config' pour une configuration manquante/invalide (pas un problème réseau). */
+  onMapError: (message: string, kind?: 'config' | 'network') => void;
   onMapReady?: (map: MLMap) => void;
-  onFallbackProvider?: (usingFallback: boolean) => void;
+  /** `reason` : 'access' = clé/domaine/quota refusés, 'style' = style du mode introuvable/illisible, 'network' = pannes répétées. */
+  onFallbackProvider?: (usingFallback: boolean, reason?: FallbackReason) => void;
+  /**
+   * Le mode demandé n'est pas disponible avec le fournisseur configuré (ex. « Hybride » sans
+   * identifiant de style). La carte garde le fond actuel ; `appliedMode` est le mode réellement
+   * affiché, que l'interface doit rétablir au lieu d'annoncer un mode inexistant.
+   */
+  onStyleModeRejected?: (appliedMode: MapStyleMode, message: string) => void;
   /** Expose le déclenchement du recentrage GPS natif (bouton "Ma position" de MapPage). */
   onGeolocateControlReady?: (trigger: () => void) => void;
 }
@@ -75,7 +101,7 @@ function buildingMarkerEl(building: Building, onClick: () => void) {
     'group flex min-h-[36px] items-center gap-1.5 rounded-full bg-white pl-1 pr-2.5 py-1 shadow-[0_6px_20px_rgba(17,29,71,0.18)] border border-white ring-1 ring-black/5 transition-transform hover:scale-105';
   el.innerHTML = `
     <span class="grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white" style="background:${safeColor(building.color)}">${escapeHtml(building.code)}</span>
-    <span class="text-[11px] font-semibold text-hec-950 whitespace-nowrap max-w-[120px] truncate">${escapeHtml(building.name.split('—')[0].trim())}</span>
+    <span class="hec-bld-name text-[11px] font-semibold text-hec-950 whitespace-nowrap max-w-[120px] truncate">${escapeHtml(building.name.split('—')[0].trim())}</span>
   `;
   el.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -243,6 +269,7 @@ export function CampusMap({
   onMapError,
   onMapReady,
   onFallbackProvider,
+  onStyleModeRejected,
   onGeolocateControlReady,
 }: CampusMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -267,9 +294,8 @@ export function CampusMap({
   });
   const externalPoisRef = useRef<ExternalPOI[]>(externalPois);
   externalPoisRef.current = externalPois;
-  // Suivi, par mode de style, du fait qu'on a deja bascule sur le fournisseur
-  // de secours (evite une boucle infinie si le fallback echoue aussi).
-  const fallbackTriedRef = useRef<Partial<Record<MapStyleMode, boolean>>>({});
+  // Vrai tant que le fond de secours est affiché : évite une boucle infinie
+  // si le secours échoue aussi (remis à faux à chaque changement de mode).
   const usingFallbackRef = useRef(false);
   const styleModeRef = useRef(styleMode);
   styleModeRef.current = styleMode;
@@ -280,7 +306,8 @@ export function CampusMap({
   // qu'aucune tuile n'ait chargé entre-temps (voir 'error' et 'sourcedata'
   // ci-dessous).
   const tileErrorStreakRef = useRef(0);
-  const TILE_ERROR_THRESHOLD = 4;
+  /** Mode dont le style a réellement été demandé à la carte (≠ mode simplement cliqué). */
+  const appliedModeRef = useRef<MapStyleMode>(styleMode);
 
   // Keep latest callback props reachable from map event listeners without
   // re-creating the map instance every render.
@@ -293,6 +320,7 @@ export function CampusMap({
     onGeolocateError,
     onMapError,
     onFallbackProvider,
+    onStyleModeRejected,
     onGeolocateControlReady,
   });
   callbacksRef.current = {
@@ -304,6 +332,7 @@ export function CampusMap({
     onGeolocateError,
     onMapError,
     onFallbackProvider,
+    onStyleModeRejected,
     onGeolocateControlReady,
   };
 
@@ -435,7 +464,12 @@ export function CampusMap({
         },
       });
     }
-    if (!map.getLayer('poi-cluster-count')) {
+    // Le compteur de cluster est un libellé texte : il exige un serveur de
+    // glyphes. Le fond de secours raster n'en a pas (ajouter la couche
+    // produirait une erreur) et la police doit exister chez le fournisseur —
+    // on réutilise donc celle de son propre style (voir pickTextFont).
+    const clusterFont = pickTextFont(map.getStyle());
+    if (clusterFont && !map.getLayer('poi-cluster-count')) {
       map.addLayer({
         id: 'poi-cluster-count',
         type: 'symbol',
@@ -443,7 +477,7 @@ export function CampusMap({
         filter: ['has', 'point_count'],
         layout: {
           'text-field': ['get', 'point_count_abbreviated'],
-          'text-font': ['Noto Sans Bold'],
+          'text-font': clusterFont,
           'text-size': 12,
         },
         paint: { 'text-color': '#ffffff' },
@@ -463,6 +497,22 @@ export function CampusMap({
         },
       });
     }
+  }
+
+  // (Re)crée les couches POI après chargement des icônes. Garde-fous : la carte
+  // peut avoir été détruite, ou son style remplacé, pendant le chargement
+  // asynchrone des icônes (changements de mode rapides) — ajouter alors des
+  // couches à un style en cours de remplacement levait une exception non gérée.
+  // Chaque 'style.load' relance cette fonction : un échec ici est donc récupérable.
+  function refreshPoiLayers(map: MLMap) {
+    loadPoiIcons(map)
+      .then(() => {
+        if (mapRef.current !== map) return;
+        addPoiLayers(map);
+      })
+      .catch((err: unknown) => {
+        console.warn('[CampusMap] Couches de lieux publics non ajoutées (style en cours de remplacement ?)', err);
+      });
   }
 
   // Attache les interactions (click/hover) sur les layers POI. Appelée une
@@ -570,14 +620,24 @@ export function CampusMap({
       console.error('[CampusMap] Impossible de résoudre le style de carte :', err);
       callbacksRef.current.onMapError(
         err instanceof Error ? err.message : 'Configuration de la carte invalide.',
+        err instanceof MapConfigError ? 'config' : 'network',
       );
       return;
     }
+    // Options de vue (zoom min/max, cap, inclinaison, antialias) : définies
+    // dans map-config.ts mais jamais appliquées auparavant. Valeurs sobres
+    // pour mobiles modestes (pas de pitch 3D, pas d'antialias).
+    const viewOptions = getMapViewOptions(styleMode);
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: initialStyle,
       center,
-      zoom: campus.default_zoom,
+      zoom: Math.min(Math.max(campus.default_zoom, viewOptions.minZoom), viewOptions.maxZoom),
+      minZoom: viewOptions.minZoom,
+      maxZoom: viewOptions.maxZoom,
+      pitch: viewOptions.pitch,
+      bearing: viewOptions.bearing,
+      antialias: viewOptions.antialias,
       attributionControl: { compact: true },
     });
     mapRef.current = map;
@@ -637,7 +697,7 @@ export function CampusMap({
       if (geolocateTrackingRef.current && lastGeolocatePosRef.current) {
         map.easeTo({
           center: lastGeolocatePosRef.current,
-          zoom: Math.max(map.getZoom(), 18),
+          zoom: focusZoom(map.getZoom(), map.getMaxZoom()),
           duration: 600,
         });
         return;
@@ -674,48 +734,92 @@ export function CampusMap({
     // - erreur venant d'une autre source (route, marqueurs) -> ignorée ici,
     //   elle ne doit jamais casser l'affichage de la carte de fond.
     map.on('error', (e) => {
-      const sourceId = (e as { sourceId?: string }).sourceId;
-      console.error('MapLibre error', sourceId ?? '(carte)', e?.error);
-
-      if (!sourceId || sourceId === 'base' || sourceId === 'reference') {
-        tileErrorStreakRef.current += 1;
-        if (tileErrorStreakRef.current < TILE_ERROR_THRESHOLD) {
-          // Échec isolé (ou encore peu fréquent) : on l'ignore, la carte
-          // continue de s'afficher avec les tuiles déjà chargées.
-          return;
-        }
-
-        const mode = styleModeRef.current;
-        if (!fallbackTriedRef.current[mode] && !usingFallbackRef.current) {
-          fallbackTriedRef.current[mode] = true;
-          usingFallbackRef.current = true;
-          tileErrorStreakRef.current = 0;
-          callbacksRef.current.onFallbackProvider?.(true);
-          map.setStyle(getMapStyle(mode, true));
-          return;
-        }
-        callbacksRef.current.onMapError(
-          `${mapStyleLabels[mode]} indisponible : le fournisseur de tuiles ne répond pas.`,
-        );
+      const ev = e as unknown as { sourceId?: string; error?: { message?: string; status?: number; url?: string } };
+      // URL du style actuellement demandé : permet de reconnaître l'échec du
+      // DOCUMENT de style (sans sourceId), ignoré jusqu'ici comme « passager ».
+      let activeStyleUrl: string | undefined;
+      try {
+        const current = getMapStyle(styleModeRef.current);
+        activeStyleUrl = typeof current === 'string' ? current : undefined;
+      } catch {
+        activeStyleUrl = undefined;
       }
+      const kind: MapErrorKind = classifyMapError(ev, { activeStyleUrl });
+      // Les erreurs réseau MapLibre contiennent l'URL complète (donc ?key=…) :
+      // on ne journalise jamais une clé.
+      console.error(
+        'MapLibre error',
+        ev.sourceId ?? '(carte)',
+        `[${kind}]`,
+        maskSecretsInUrl(String(ev.error?.message ?? '')),
+        ev.error?.status ?? '',
+        maskSecretsInUrl(String(ev.error?.url ?? '')),
+      );
+      const decision = decideMapErrorAction({
+        kind,
+        transientStreak: tileErrorStreakRef.current,
+        fallbackActive: usingFallbackRef.current,
+      });
+      tileErrorStreakRef.current = decision.transientStreak;
+      if (decision.action === 'ignore') return;
+
+      const mode = styleModeRef.current;
+      if (decision.action === 'fallback') {
+        usingFallbackRef.current = true;
+        callbacksRef.current.onFallbackProvider?.(true, fallbackReasonFor(kind, ev.error?.status));
+        // diff:false → reconstruction complète, donc 'style.load' garanti (voir plus bas).
+        map.setStyle(getMapStyle(mode, true), { diff: false });
+        return;
+      }
+      callbacksRef.current.onMapError(
+        `${mapStyleLabels[mode]} indisponible : le fournisseur de tuiles ne répond pas.`,
+        'network',
+      );
     });
 
     // Une tuile chargée avec succès prouve que le fournisseur répond bien :
     // on remet le compteur d'échecs à zéro pour ne pas cumuler des échecs
     // isolés espacés dans le temps jusqu'à dépasser le seuil par erreur.
+    // Toute source du FOND (pas seulement 'base') compte, car les styles
+    // vectoriels réels utilisent d'autres identifiants.
+    // Limite de zoom réelle : plus petit entre la limite configurée du mode et
+    // le maxzoom déclaré par les sources raster (imagerie). Évite de laisser
+    // zoomer sur des pixels simplement agrandis. Recalculée quand une source
+    // finit de charger (le maxzoom d'une source à TileJSON n'est connu qu'alors).
+    const applyRealMaxZoom = () => {
+      try {
+        const sources = map.getStyle()?.sources ?? {};
+        const declared = Object.entries(sources)
+          .filter(([, src]) => (src as { type?: string }).type === 'raster')
+          .map(([id]) => (map.getSource(id) as { maxzoom?: number } | undefined)?.maxzoom);
+        const target = effectiveMaxZoom(getMapViewOptions(styleModeRef.current).maxZoom, declared);
+        if (Math.abs(map.getMaxZoom() - target) > 0.01) map.setMaxZoom(target);
+      } catch {
+        /* style en cours de remplacement : sans effet, recalculé au prochain chargement */
+      }
+    };
     map.on('sourcedata', (e) => {
-      const sourceId = (e as { sourceId?: string }).sourceId;
-      if (
-        (sourceId === 'base' || sourceId === 'reference') &&
-        (e as { isSourceLoaded?: boolean }).isSourceLoaded
-      ) {
+      const ev = e as { sourceId?: string; isSourceLoaded?: boolean };
+      if (isBaseMapSource(ev.sourceId) && ev.isSourceLoaded) {
         tileErrorStreakRef.current = 0;
+        applyRealMaxZoom();
       }
     });
 
+    // Désencombrement : à faible zoom, les pastilles de bâtiments n'affichent
+    // que leur code (les noms se chevauchent). Le nom complet réapparaît dès
+    // que la carte est assez zoomée. Classe CSS sur le conteneur : aucun
+    // marqueur n'est supprimé, seule la lisibilité change.
+    const BUILDING_LABEL_MIN_ZOOM = 17;
+    const syncLabelDensity = () => {
+      containerRef.current?.classList.toggle('hec-zoom-far', map.getZoom() < BUILDING_LABEL_MIN_ZOOM);
+    };
+    map.on('zoom', syncLabelDensity);
+    syncLabelDensity();
+
     map.on('load', () => {
       readyRef.current = true;
-      loadPoiIcons(map).then(() => addPoiLayers(map));
+      refreshPoiLayers(map);
       addRouteLayers(map);
       fitRouteIfNeeded(map);
       addAllMarkers(map);
@@ -736,7 +840,7 @@ export function CampusMap({
       // valide reçu) : un changement de fond de carte ne la fait jamais
       // disparaître.
       addRouteLayers(map);
-      loadPoiIcons(map).then(() => addPoiLayers(map));
+      refreshPoiLayers(map);
     });
     // Filet de sécurité : si un swap de style a détruit la source de la
     // route sans passer par 'style.load' (style.load n'est pas toujours
@@ -749,6 +853,12 @@ export function CampusMap({
         } catch (err) {
           console.error('[CampusMap] Restauration de la route impossible :', err);
         }
+      }
+      // Même filet pour les lieux publics : un changement de style « diff » retire
+      // aussi leur source (constaté dans MapLibre 4.7 : removeSource) sans émettre
+      // 'style.load'. Les icônes déjà chargées ne sont pas rechargées inutilement.
+      if (!map.getSource('external-pois') || !map.getLayer('poi-unclustered')) {
+        refreshPoiLayers(map);
       }
     });
 
@@ -798,11 +908,26 @@ export function CampusMap({
     tileErrorStreakRef.current = 0;
     callbacksRef.current.onFallbackProvider?.(false);
     try {
-      map.setStyle(getMapStyle(styleMode));
+      // diff:false : reconstruction complète du style. Avec le « diff » par défaut,
+      // MapLibre retire nos sources (route, lieux publics) sans émettre 'style.load'
+      // et, si le style.json du nouveau mode est illisible, GARDE l'ancien fond alors
+      // que l'interface annonce le nouveau mode. Ici, 'style.load' est garanti et un
+      // style illisible produit une erreur traitée (repli honnête).
+      map.setStyle(getMapStyle(styleMode), { diff: false });
+      // Le zoom max dépend du mode (imagerie satellite : 19, vecteur : 20).
+      map.setMaxZoom(getMapViewOptions(styleMode).maxZoom);
+      appliedModeRef.current = styleMode;
     } catch (err) {
       console.error('[CampusMap] Impossible de changer de style de carte :', err);
+      // Mode non disponible chez ce fournisseur : getMapStyle a levé AVANT setStyle, donc le fond
+      // précédent est toujours affiché. On le dit, au lieu de bloquer toute la carte.
+      if (err instanceof MapConfigError && callbacksRef.current.onStyleModeRejected) {
+        callbacksRef.current.onStyleModeRejected(appliedModeRef.current, err.message);
+        return;
+      }
       callbacksRef.current.onMapError(
         err instanceof Error ? err.message : 'Configuration de la carte invalide.',
+        err instanceof MapConfigError ? 'config' : 'network',
       );
     }
   }, [styleMode]);
@@ -884,7 +1009,7 @@ export function CampusMap({
     const offset: [number, number] = w >= 1024 ? [204, 0] : [0, -Math.round(h * 0.2)];
     map.flyTo({
       center: pos,
-      zoom: Math.max(map.getZoom(), 18),
+      zoom: focusZoom(map.getZoom(), map.getMaxZoom()),
       duration: 900,
       essential: true,
       offset,
@@ -913,7 +1038,7 @@ export function CampusMap({
         (b, c) => b.extend(c),
         new maplibregl.LngLatBounds(coords[0], coords[0]),
       );
-      map.fitBounds(bounds, { padding: routeFitPadding(map), duration: 900, maxZoom: 19 });
+      map.fitBounds(bounds, { padding: routeFitPadding(map), duration: 900, maxZoom: Math.min(19, map.getMaxZoom()) });
     } catch (err) {
       console.error('[CampusMap] Cadrage sur la route impossible :', err);
     }

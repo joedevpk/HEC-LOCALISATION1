@@ -1,3 +1,4 @@
+import { usefulMaxZoom } from '@/lib/imagery-resolution';
 import type { StyleSpecification } from 'maplibre-gl';
 
 /* ============================================================================
@@ -110,12 +111,21 @@ function styleUrlOverride(mode: MapStyleMode): string | undefined {
  * Toujours surchargeable via VITE_MAP_STYLE_ID_<MODE>.
  * -------------------------------------------------------------------------- */
 
+// Audit : ces identifiants sont ceux de la génération « v2 » de MapTiler. La documentation
+// officielle (docs.maptiler.com/updates/deprecated) indique que les styles dépréciés ne sont
+// PAS supprimés ; des équivalents « v4 » existent (streets-v4, satellite-v4, hybrid-v4,
+// topo-v4, dataviz-v4-dark…). Aucun des deux jeux n'a pu être testé ici avec une vraie clé :
+// lancez `npm run check:styles` (scripts/check-map-styles.mjs) avec VOTRE clé pour savoir
+// lesquels répondent sur votre compte, puis surchargez au besoin via VITE_MAP_STYLE_ID_<MODE>.
 const MAPTILER_STYLE_IDS: Partial<Record<MapStyleMode, string>> = {
-  plan: 'streets-v2', // VÉRIFIÉ — style par défaut du SDK MapTiler
-  satellite: 'satellite', // À VÉRIFIER
-  hybrid: 'hybrid', // VÉRIFIÉ — imagerie + labels/routes
-  topo: 'topo-v2', // VÉRIFIÉ
-  dark: 'dataviz-dark', // À VÉRIFIER — confirmez l'ID exact dans votre compte MapTiler
+  plan: 'streets-v2', // style par défaut historique du SDK MapTiler
+  satellite: 'satellite', // imagerie seule, sans libellés (à confirmer avec check:styles)
+  hybrid: 'hybrid', // imagerie + libellés/routes (non déprécié selon le changelog du SDK)
+  topo: 'topo-v2',
+  // Variante sombre de « Streets » : rues et noms lisibles pour naviguer. Remplace
+  // 'dataviz-dark' (fond de visualisation de données : peu de libellés, inadapté à un plan
+  // de campus). Surchargeable : VITE_MAP_STYLE_ID_DARK.
+  dark: 'streets-v2-dark',
 };
 
 const MAPBOX_STYLE_IDS: Partial<Record<MapStyleMode, string>> = {
@@ -129,11 +139,10 @@ const MAPBOX_STYLE_IDS: Partial<Record<MapStyleMode, string>> = {
 const ESRI_BASEMAP_STYLE_IDS: Partial<Record<MapStyleMode, string>> = {
   plan: 'ArcGIS:Streets', // VÉRIFIÉ
   satellite: 'ArcGIS:Imagery', // VÉRIFIÉ
-  hybrid: 'ArcGIS:Imagery', // À VÉRIFIER — aucun style "hybride" (imagerie+labels)
-  // confirmé publiquement dans le catalogue vectoriel Esri au moment de l'écriture ;
-  // à défaut on retombe sur l'imagerie seule (SANS labels garantis). Ne pas
-  // annoncer "Hybride" comme pleinement fonctionnel tant que ce n'est pas vérifié
-  // dans votre compte ArcGIS.
+  // hybrid : volontairement NON défini. Auparavant, « Hybride » pointait sur la même
+  // imagerie que « Satellite » (sans libellés) : l'interface annonçait un mode qu'elle
+  // n'affichait pas. Sans identifiant explicite (VITE_MAP_STYLE_ID_HYBRID), le mode est
+  // refusé avec un message clair et le fond actuel reste affiché.
   topo: 'ArcGIS:Topographic', // VÉRIFIÉ
   dark: 'ArcGIS:DarkGray', // À VÉRIFIER
 };
@@ -229,11 +238,36 @@ function buildOsmFallbackStyle(): StyleSpecification {
   };
 }
 
+function envZoom(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 5 && n <= 22 ? n : null;
+}
+
+/**
+ * Zoom maximal autorisé pour un mode.
+ *
+ * Valeur par défaut prudente (imagerie 19, vecteur 20), MAIS la vraie limite
+ * est celle de l'imagerie du fournisseur SUR LE CAMPUS : au-delà, la carte
+ * ne montre que des pixels agrandis. Une fois cette limite mesurée sur place
+ * (voir docs/TEST_SATELLITE.md), elle se fixe sans modifier le code :
+ *   VITE_MAP_MAXZOOM_SATELLITE  (satellite et hybride)
+ *   VITE_MAP_MAXZOOM_VECTOR     (plan, topographique, sombre)
+ * CampusMap la réduit en plus si la source déclare un maxzoom inférieur.
+ */
 function maxZoomFor(mode: MapStyleMode): number {
-  // Valeurs standards de l'industrie pour ce type de contenu (imagerie
-  // satellite vs. rues vectorielles) ; à ajuster si votre plan/fournisseur
-  // documente une valeur différente pour votre compte.
-  return mode === 'satellite' || mode === 'hybrid' ? 19 : 20;
+  if (mode === 'satellite' || mode === 'hybrid') {
+    const explicit = envZoom(import.meta.env.VITE_MAP_MAXZOOM_SATELLITE);
+    if (explicit !== null) return explicit;
+    // Optionnel : si l'administrateur CONNAÎT la résolution native de l'imagerie sur le campus
+    // (mètres par pixel, ex. 2 pour du 2 m/px), on n'autorise pas de zoom qui ne ferait qu'étirer
+    // ses pixels. Sans cette valeur : 19 (aucune hypothèse sur l'imagerie).
+    const nativeMpp = Number(import.meta.env.VITE_MAP_IMAGERY_NATIVE_MPP);
+    if (Number.isFinite(nativeMpp) && nativeMpp > 0) {
+      return usefulMaxZoom(nativeMpp, 19); // latitude tropicale : l'écart de cos(lat) est < 0,5 %
+    }
+    return 19;
+  }
+  return envZoom(import.meta.env.VITE_MAP_MAXZOOM_VECTOR) ?? 20;
 }
 
 /* ============================================================================

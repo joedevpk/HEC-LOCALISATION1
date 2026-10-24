@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
-    "healthcheck": "node scripts/healthcheck.mjs"
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "audit:data": "vite-node scripts/audit-campus-data.ts",
+    "check:styles": "vite-node scripts/check-map-styles.ts",
+    "probe:imagery": "vite-node scripts/probe-imagery.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

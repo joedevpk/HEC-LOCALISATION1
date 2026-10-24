@@ -107,18 +107,50 @@ function getIconDataUrl(category: POICategory): string {
  * trop tôt (avant l'événement `load`, ou juste après un `setStyle`)
  * lèverait sinon une erreur MapLibre. On attend silencieusement que le
  * style soit prêt plutôt que de risquer un crash (point 4). */
-function waitForStyleReady(map: MLMap): Promise<void> {
-  if (map.isStyleLoaded()) return Promise.resolve();
+/**
+ * Le DOCUMENT de style est chargé (on peut y ajouter images, sources et couches) même si des
+ * tuiles sont encore en cours ou en échec. `getStyle()` ne renvoie rien tant que le style n'est
+ * pas chargé ; `isStyleLoaded()`, lui, reste faux tant qu'une tuile échoue (fond de secours
+ * hors ligne, fournisseur en panne) — c'est ce qui retardait la restauration des couches.
+ */
+function styleDocumentLoaded(map: MLMap): boolean {
+  try {
+    return typeof map.getStyle === 'function' && Boolean(map.getStyle());
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Attend que le style soit utilisable pour y ajouter des images. BUG corrigé : l'ancienne version
+ * n'écoutait que 'styledata' et 'load'. Après un changement de style, `isStyleLoaded()` est encore
+ * faux au moment de 'style.load' et aucun autre 'styledata'/'load' n'arrive ensuite : la promesse
+ * ne se résolvait jamais, donc les couches de lieux publics n'étaient JAMAIS recréées (constaté
+ * en navigateur réel). 'style.load' et 'idle' signifient que le style est bien chargé ; un délai
+ * de dernier recours évite toute attente infinie (l'appelant gère l'échec éventuel).
+ */
+export function waitForStyleReady(map: MLMap, timeoutMs = 3000): Promise<void> {
+  if (map.isStyleLoaded() || styleDocumentLoaded(map)) return Promise.resolve();
   return new Promise((resolve) => {
-    const check = () => {
-      if (map.isStyleLoaded()) {
-        map.off('styledata', check);
-        map.off('load', check);
-        resolve();
-      }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      map.off('styledata', check);
+      map.off('load', check);
+      map.off('style.load', finish);
+      map.off('idle', finish);
+      resolve();
     };
+    const check = () => {
+      if (map.isStyleLoaded() || styleDocumentLoaded(map)) finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
     map.on('styledata', check);
     map.on('load', check);
+    map.on('style.load', finish);
+    map.on('idle', finish);
   });
 }
 

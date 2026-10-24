@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Clock, LocateFixed, Loader2, Search, X } from 'lucide-react';
 import type { CampusLocation } from '@/lib/types';
 import { searchLocations, suggestClosestLocation, haversine, formatDistance } from '@/lib/nav';
@@ -25,6 +25,8 @@ export function LocationSearch({
   autoFocus,
   initialQuery = '',
   placeholder = 'Rechercher une salle, un bureau, un service…',
+  onQueryChange,
+  footer,
 }: {
   locations: CampusLocation[];
   recent: string[];
@@ -34,6 +36,10 @@ export function LocationSearch({
    * "Trouvez rapidement" du dashboard (?q=... dans l'URL). */
   initialQuery?: string;
   placeholder?: string;
+  /** Notifie la saisie brute (ex. pour une recherche géographique en parallèle). */
+  onQueryChange?: (query: string) => void;
+  /** Contenu affiché sous les résultats du campus (ex. lieux publics). */
+  footer?: ReactNode;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
@@ -50,6 +56,10 @@ export function LocationSearch({
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
+
+  useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
 
   // Si la query initiale change (nouvelle navigation depuis l'accueil vers
   // une recherche différente pendant que la page reste montée), on la
@@ -304,6 +314,8 @@ export function LocationSearch({
             </div>
           ))}
         </div>
+
+        {footer}
 
         {!cleanedQuery && !nearbyMode && recent.length === 0 && (
           <div className="mt-2 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-8 text-center text-sm text-slate-500">

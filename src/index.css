@@ -295,3 +295,9 @@ li {
     max-height: 70dvh !important;
   }
 }
+
+/* Carte : à faible zoom, les pastilles de bâtiments se réduisent à leur code
+   pour éviter que les noms se chevauchent (classe posée par CampusMap). */
+.hec-zoom-far .hec-bld-name {
+  display: none;
+}

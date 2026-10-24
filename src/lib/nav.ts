@@ -36,6 +36,11 @@ export interface RouteResult {
    * honnetement cette info et ne jamais presenter le cas false comme un
    * itineraire reel. */
   usedNetwork: boolean;
+  /** 'external' : itinéraire piéton calculé par un service de routage externe
+   * (hors réseau interne du campus). Absent / 'campus' : réseau du campus. */
+  source?: 'campus' | 'external';
+  /** Nom du service externe (affiché à l'utilisateur), si source === 'external'. */
+  provider?: string;
 }
 
 const EARTH_RADIUS_M = 6371000;

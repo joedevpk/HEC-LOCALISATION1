@@ -385,10 +385,12 @@ function AdminOverview({
         {kpis.map((k) => (
           <div
             key={k.label}
-            className="rounded-2xl border border-slate-100 bg-white p-4"
+            className="rounded-2xl border border-slate-100 bg-white p-4 shadow-glass"
           >
-            <div className="flex items-center gap-2 text-slate-400">
-              <k.icon className="h-4 w-4" />
+            <div className="flex items-center gap-2.5 text-slate-500">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-hec-50 text-hec-600" aria-hidden="true">
+                <k.icon className="h-4 w-4" />
+              </span>
               <span className="text-[11px] font-medium uppercase tracking-wide">
                 {k.label}
               </span>

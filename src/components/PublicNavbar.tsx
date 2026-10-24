@@ -168,6 +168,7 @@ export function PublicNavbar() {
 
           <Button
             size="sm"
+            variant={solid ? 'primary' : 'accent'}
             icon={<Navigation className="h-4 w-4" />}
             onClick={() => go('/map')}
             className="hidden sm:inline-flex"

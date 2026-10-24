@@ -21,6 +21,21 @@ export default {
           900: '#152c72',
           950: '#111d47',
         },
+        // Couleurs mesurées sur le logo officiel (public/images/hec-logo.png) :
+        // jaune dominant #faf120, bleu dominant #067fd4, rouge #d90f16.
+        // 'gold' = accent (utilisé avec modération, de préférence sur fond
+        // bleu foncé où le contraste est excellent). 'logo' = référence
+        // exacte du logo, pas une couleur d'interface.
+        gold: {
+          300: '#fff67a',
+          400: '#faf120',
+          500: '#e8d900',
+        },
+        logo: {
+          blue: '#067fd4',
+          yellow: '#faf120',
+          red: '#d90f16',
+        },
       },
       boxShadow: {
         glass: '0 8px 30px rgba(17, 29, 71, 0.08)',

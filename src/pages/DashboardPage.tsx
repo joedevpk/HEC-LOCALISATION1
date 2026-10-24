@@ -116,7 +116,7 @@ export function DashboardPage() {
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3.5">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/15 font-display text-lg font-bold text-white backdrop-blur">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gold-400 font-display text-lg font-bold text-hec-950">
               {initial}
             </span>
             <div className="min-w-0">
@@ -130,7 +130,7 @@ export function DashboardPage() {
             <Button variant="glass" size="sm" icon={<Search className="h-4 w-4" />} onClick={() => go('/search')}>
               Rechercher
             </Button>
-            <Button size="sm" icon={<Compass className="h-4 w-4" />} onClick={() => go('/map')}>
+            <Button size="sm" variant="accent" icon={<Compass className="h-4 w-4" />} onClick={() => go('/map')}>
               Me guider
             </Button>
           </div>

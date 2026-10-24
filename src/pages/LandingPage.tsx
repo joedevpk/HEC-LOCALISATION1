@@ -226,14 +226,14 @@ export function LandingPage() {
           <h1 className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
             Le campus HEC,
             <br />
-            à portée de carte.
+            <span className="text-gold-400">à portée de carte.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-white/85">
             Découvrez, recherchez et explorez votre campus, depuis votre téléphone ou votre ordinateur.
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Button size="lg" icon={<ArrowRight className="h-5 w-5" />} onClick={() => go('/map')} className="w-full sm:w-auto">
+            <Button size="lg" variant="accent" icon={<ArrowRight className="h-5 w-5" />} onClick={() => go('/map')} className="w-full sm:w-auto">
               Explorer la carte
             </Button>
             <Button size="lg" variant="glass" onClick={() => scrollToSection('discover')} className="w-full sm:w-auto">
@@ -387,7 +387,7 @@ export function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Button size="lg" className="mt-8" icon={<MapPinned className="h-5 w-5" />} onClick={() => go('/map')}>
+            <Button size="lg" variant="accent" className="mt-8" icon={<MapPinned className="h-5 w-5" />} onClick={() => go('/map')}>
               Ouvrir la carte
             </Button>
           </Reveal>
@@ -590,7 +590,7 @@ export function LandingPage() {
             Lancez-vous en quelques secondes. La carte est publique, créez un compte pour enregistrer vos favoris et votre historique.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button size="lg" icon={<ArrowRight className="h-5 w-5" />} onClick={() => go('/map')} className="w-full sm:w-auto">
+            <Button size="lg" variant="accent" icon={<ArrowRight className="h-5 w-5" />} onClick={() => go('/map')} className="w-full sm:w-auto">
               Explorer le campus
             </Button>
             <Button size="lg" variant="glass" onClick={() => go('/register')} className="w-full sm:w-auto">
@@ -607,27 +607,27 @@ export function LandingPage() {
       </section>
 
       {/* ============ FOOTER INSTITUTIONNEL ============ */}
-      <footer className="border-t border-slate-100 bg-white py-14">
+      <footer className="border-t-4 border-gold-400 bg-hec-950 py-14 text-white">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <Logo size="sm" />
-              <p className="mt-4 max-w-[260px] text-sm text-slate-500">
+              <Logo size="md" inverted tagline />
+              <p className="mt-4 max-w-[260px] text-sm text-white/70">
                 HEC LOCALISATION — la plateforme Smart Campus de la Haute École de Commerce de Kinshasa.
               </p>
-              <p className="mt-3 max-w-[260px] text-sm font-medium text-hec-900">
+              <p className="mt-3 max-w-[260px] text-sm font-medium text-gold-400">
                 Une solution numérique dédiée à l'expérience du campus.
               </p>
             </div>
             {footerColumns.map((col) => (
               <div key={col.title}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{col.title}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{col.title}</p>
                 <ul className="mt-3 space-y-1">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <button
                         onClick={() => go(link.href)}
-                        className="min-h-[36px] text-sm text-slate-600 hover:text-hec-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-hec-300"
+                        className="min-h-[36px] text-sm text-white/80 hover:text-gold-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
                       >
                         {link.label}
                       </button>
@@ -637,23 +637,23 @@ export function LandingPage() {
               </div>
             ))}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Institution</p>
-              <p className="mt-3 text-sm font-semibold text-hec-950">Haute École de Commerce de Kinshasa</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Institution</p>
+              <p className="mt-3 text-sm font-semibold text-white">Haute École de Commerce de Kinshasa</p>
               {legalConfig.contactEmail ? (
                 <p className="mt-1 text-sm">
-                  <a href={`mailto:${legalConfig.contactEmail}`} className="text-hec-600 underline">
+                  <a href={`mailto:${legalConfig.contactEmail}`} className="text-gold-400 underline">
                     {legalConfig.contactEmail}
                   </a>
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-slate-500">Les coordonnées officielles seront publiées ici par l'administration.</p>
+                <p className="mt-1 text-sm text-white/70">Les coordonnées officielles seront publiées ici par l'administration.</p>
               )}
-              {campus?.name && <p className="mt-1 text-sm text-slate-500">{campus.name}</p>}
+              {campus?.name && <p className="mt-1 text-sm text-white/70">{campus.name}</p>}
             </div>
           </div>
-          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-6 sm:flex-row">
-            <p className="text-xs text-slate-400">© {new Date().getFullYear()} HEC Localisation · Haute École de Commerce de Kinshasa</p>
-            <LegalLinks />
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 sm:flex-row">
+            <p className="text-xs text-white/60">© {new Date().getFullYear()} HEC Localisation · Haute École de Commerce de Kinshasa</p>
+            <LegalLinks tone="dark" />
           </div>
         </div>
       </footer>

@@ -170,7 +170,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
         <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-panel sm:p-9 dark:border-hec-800 dark:bg-hec-900">
           <div className="flex flex-col items-center text-center">
-            <Logo size="lg" />
+            <Logo size="xl" stacked tagline />
             <h1 className="mt-6 font-display text-2xl font-bold text-hec-950 dark:text-white">
               {isRegister ? 'Créer un compte' : 'Connexion'}
             </h1>

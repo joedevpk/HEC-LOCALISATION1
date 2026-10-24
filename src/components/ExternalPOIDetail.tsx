@@ -20,11 +20,14 @@ export function ExternalPOIDetail({
   userLng,
   userLat,
   onClose,
+  onRoute,
 }: {
   poi: ExternalPOI;
   userLng?: number;
   userLat?: number;
   onClose: () => void;
+  /** Si fourni, l'itinéraire piéton est calculé et tracé dans l'application. */
+  onRoute?: () => void;
 }) {
   const color = poiCategoryColors[poi.category];
   const path = poiCategorySvgPaths[poi.category];
@@ -49,7 +52,7 @@ export function ExternalPOIDetail({
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-hec-500">
-              {poiCategoryLabels[poi.category]} · lieu public (OpenStreetMap)
+              {poiCategoryLabels[poi.category]} · lieu public ({poi.source === 'geocoder' ? 'recherche de lieux' : 'OpenStreetMap'})
             </p>
             <h2 className="font-display text-xl font-bold text-hec-950">{poi.name}</h2>
           </div>
@@ -79,8 +82,9 @@ export function ExternalPOIDetail({
       )}
 
       <p className="mt-3 text-xs text-slate-500">
-        Ce lieu est extérieur au campus HEC : l'itinéraire n'est pas calculé sur le réseau de
-        chemins interne, mais peut être ouvert dans OpenStreetMap.
+        {onRoute
+          ? "Ce lieu est extérieur au campus HEC : l'itinéraire piéton est calculé par un service de routage sur les chemins OpenStreetMap."
+          : "Ce lieu est extérieur au campus HEC : l'itinéraire n'est pas calculé sur le réseau de chemins interne, mais peut être ouvert dans OpenStreetMap."}
       </p>
 
       <div className="mt-4 flex items-center gap-2">
@@ -88,10 +92,11 @@ export function ExternalPOIDetail({
           size="lg"
           className="flex-1"
           icon={<Navigation className="h-5 w-5" />}
-          onClick={() => window.open(directionsUrl, '_blank', 'noopener,noreferrer')}
+          onClick={() => (onRoute ? onRoute() : window.open(directionsUrl, '_blank', 'noopener,noreferrer'))}
         >
           Itinéraire
         </Button>
+        {poi.id.startsWith('osm:') && (
         <a
           href={`https://www.openstreetmap.org/${poi.id.replace('osm:', '')}`}
           target="_blank"
@@ -101,6 +106,7 @@ export function ExternalPOIDetail({
         >
           <ExternalLink className="h-5 w-5" />
         </a>
+        )}
       </div>
     </div>
   );

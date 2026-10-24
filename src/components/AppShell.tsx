@@ -208,18 +208,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-dvh overflow-hidden bg-slate-50 dark:bg-hec-950">
       {showOnboarding && <OnboardingModal onDone={dismissOnboarding} />}
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-100 bg-white dark:border-hec-900 dark:bg-hec-900 md:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-hec-900 bg-hec-950 text-white dark:border-hec-800 md:flex">
         <div className="px-5 py-5">
           <button onClick={() => go('/')} aria-label={t('nav.backToHome')}>
-            <Logo />
+            <Logo inverted tagline />
           </button>
         </div>
         <div className="px-3">
-          <div className="rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-hec-800">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          <div className="rounded-xl bg-white/10 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/60">
               Campus
             </p>
-            <p className="mt-0.5 truncate text-sm font-bold text-hec-950 dark:text-white">
+            <p className="mt-0.5 truncate text-sm font-bold text-white">
               {campus?.name ?? 'HEC Kinshasa'}
             </p>
           </div>
@@ -231,19 +231,19 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => go(item.path)}
               className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive(item.path)
-                  ? 'bg-hec-950 text-white dark:bg-hec-700'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-hec-800'
+                  ? 'bg-gold-400 text-hec-950'
+                  : 'text-white/85 hover:bg-white/10 hover:text-white'
               }`}
             >
               {isActive(item.path) && (
-                <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-400" aria-hidden="true" />
+                <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-950/70" aria-hidden="true" />
               )}
               <item.icon className="h-4 w-4" />
               {t(item.labelKey)}
             </button>
           ))}
 
-          <p className="mb-1 mt-5 px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          <p className="mb-1 mt-5 px-3 text-[10px] font-semibold uppercase tracking-wide text-white/60">
             {t('nav.mySpace')}
           </p>
           {mySpaceItems.map((item) => (
@@ -252,12 +252,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => go(item.path)}
               className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive(item.path)
-                  ? 'bg-hec-950 text-white dark:bg-hec-700'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-hec-800'
+                  ? 'bg-gold-400 text-hec-950'
+                  : 'text-white/85 hover:bg-white/10 hover:text-white'
               }`}
             >
               {isActive(item.path) && (
-                <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-400" aria-hidden="true" />
+                <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-950/70" aria-hidden="true" />
               )}
               <item.icon className="h-4 w-4" />
               <span className="flex-1 text-left">{t(item.labelKey)}</span>
@@ -271,7 +271,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           {isAdmin && (
             <>
-              <p className="mb-1 mt-5 px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <p className="mb-1 mt-5 px-3 text-[10px] font-semibold uppercase tracking-wide text-white/60">
                 {t('nav.administration')}
               </p>
               {adminItems.map((item) => (
@@ -280,12 +280,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                   onClick={() => go(item.path)}
                   className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                     isActive(item.path)
-                      ? 'bg-hec-950 text-white dark:bg-hec-700'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-hec-800'
+                      ? 'bg-gold-400 text-hec-950'
+                      : 'text-white/85 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   {isActive(item.path) && (
-                    <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-400" aria-hidden="true" />
+                    <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-hec-950/70" aria-hidden="true" />
                   )}
                   <item.icon className="h-4 w-4" />
                   {adminLabel(item.path, t(item.labelKey))}
@@ -294,25 +294,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </nav>
-        <div className="border-t border-slate-100 p-3 dark:border-hec-800">
+        <div className="border-t border-white/10 p-3">
           <div className="mb-2 px-1">
             <LanguageSwitcher />
           </div>
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-hec-950 text-sm font-bold text-white dark:bg-hec-700">
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-gold-400 text-sm font-bold text-hec-950">
               {(profile?.full_name || 'V')[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-hec-950 dark:text-white">
+              <p className="truncate text-sm font-semibold text-white">
                 {profile?.full_name || 'Visiteur'}
               </p>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              <p className="truncate text-xs text-white/65">
                 {roleLabel(profile?.role)}
               </p>
             </div>
             <button
               onClick={() => signOut().then(() => go('/'))}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-hec-800"
+              className="grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white"
               aria-label="Déconnexion"
             >
               <LogOut className="h-4 w-4" />
@@ -534,7 +534,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }`}
           >
             {isActive(item.path) && (
-              <span className="absolute -top-1.5 h-1 w-1 rounded-full bg-hec-500" aria-hidden="true" />
+              <span className="absolute -top-1.5 h-1 w-6 rounded-full bg-gold-400" aria-hidden="true" />
             )}
             <item.icon className="h-5 w-5" />
             {t(item.labelKey)}

@@ -21,7 +21,7 @@ export const LEGAL_LINKS: { path: string; label: string }[] = [
  * Navigation légale (pied de page). Utilise le routeur de l'application
  * (hash) — pas de véritables ancres `#id`, qui casseraient le routage.
  */
-export function LegalLinks({ className = '' }: { className?: string }) {
+export function LegalLinks({ className = '', tone = 'light' }: { className?: string; tone?: 'light' | 'dark' }) {
   const go = useNavigate();
   const items = [
     ...LEGAL_LINKS,
@@ -39,7 +39,11 @@ export function LegalLinks({ className = '' }: { className?: string }) {
               <button
                 type="button"
                 onClick={() => go(path, query ? Object.fromEntries(new URLSearchParams(query)) : undefined)}
-                className="rounded font-medium text-slate-500 underline-offset-4 hover:text-hec-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-hec-500"
+                className={`rounded font-medium underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 ${
+                  tone === 'dark'
+                    ? 'text-white/75 hover:text-gold-400 focus-visible:ring-gold-400'
+                    : 'text-slate-500 hover:text-hec-600 focus-visible:ring-hec-500'
+                }`}
               >
                 {item.label}
               </button>

@@ -21,7 +21,7 @@ export function ProfilePage() {
               className="h-16 w-16 rounded-2xl object-cover"
             />
           ) : (
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-hec-950 text-2xl font-bold text-white">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gold-400 text-2xl font-bold text-hec-950">
               {(profile?.full_name || 'V')[0].toUpperCase()}
             </div>
           )}

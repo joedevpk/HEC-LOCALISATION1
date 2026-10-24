@@ -96,7 +96,8 @@ export function QRPage() {
     win.document.write(`<html><head><title>QR ${code}</title></head>
       <body style="display:grid;place-items:center;height:100vh;margin:0;font-family:sans-serif">
         <div style="text-align:center">
-          <h2 style="color:#111d47;margin-bottom:8px">HEC LOCALISATION</h2>
+          <img src="${window.location.origin}/images/hec-logo.png" alt="Logo officiel de la Haute École de Commerce de Kinshasa" style="height:72px;width:auto;object-fit:contain;margin-bottom:8px" />
+          <h2 style="color:#111d47;margin:0 0 8px">HEC LOCALISATION</h2>
           <div style="display:inline-block;padding:16px;border:1px solid #e5e7eb;border-radius:16px">${svg}</div>
           <p style="color:#111d47;font-weight:600;margin-top:16px;margin-bottom:4px">${locationName}</p>
           <p style="font-family:monospace;font-size:16px;color:#1e5eff;margin:0 0 8px">${code}</p>

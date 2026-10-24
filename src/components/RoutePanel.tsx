@@ -229,7 +229,9 @@ export function RoutePanel({
             }`}
           >
             <Waypoints className="h-3.5 w-3.5" />
-            {route.usedNetwork
+            {route.source === 'external'
+              ? `Itinéraire piéton calculé par ${route.provider ?? 'un service externe'} — vérifiez les conditions sur place`
+              : route.usedNetwork
               ? 'Itinéraire calculé sur le réseau réel du campus'
               : "Tracé indicatif : non calculé sur le réseau piéton, à ne pas suivre à la lettre"}
           </div>

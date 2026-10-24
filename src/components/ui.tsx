@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { AlertTriangle, Loader2, MapPin, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'dark' | 'glass' | 'link';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'dark' | 'glass' | 'link' | 'accent';
 type Size = 'sm' | 'md' | 'lg';
 type BadgeColor = 'slate' | 'blue' | 'green' | 'amber' | 'red';
 
@@ -16,6 +16,9 @@ const variants: Record<Variant, string> = {
   // Secondaire sur photo : verre dépoli blanc (hero, sections image).
   glass:
     'border border-white/30 bg-white/10 text-white backdrop-blur hover:bg-white/20 focus-visible:ring-white/40',
+  // Accent institutionnel (jaune du logo) : action phare sur fond bleu foncé.
+  accent:
+    'bg-gold-400 text-hec-950 hover:bg-gold-300 shadow-glass focus-visible:ring-gold-300',
   // Tertiaire : « En savoir plus ».
   link: 'bg-transparent px-2 text-hec-600 underline-offset-4 hover:underline focus-visible:ring-hec-200',
 };
@@ -73,37 +76,75 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
+/** Chemin unique du logo officiel (fichier fourni, jamais modifié). */
+export const HEC_LOGO_SRC = '/images/hec-logo.png';
+export const HEC_LOGO_ALT = 'Logo officiel de la Haute École de Commerce de Kinshasa';
+
+type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
+
+// Le logo officiel est un PNG à fond blanc opaque, ratio 199×254. Il est donc
+// toujours posé dans un conteneur blanc neutre : invisible sur fond clair,
+// lisible sur fond bleu foncé, sans jamais recolorer ni déformer le logo.
+const LOGO_SIZES: Record<LogoSize, { img: string; text: string; sub: string }> = {
+  sm: { img: 'h-9', text: 'text-sm', sub: 'text-[10px]' },
+  md: { img: 'h-11', text: 'text-base', sub: 'text-[10px]' },
+  lg: { img: 'h-14', text: 'text-xl', sub: 'text-xs' },
+  xl: { img: 'h-24 sm:h-28', text: 'text-2xl', sub: 'text-sm' },
+};
+
+/**
+ * Composant de marque central : logo officiel HEC-KIN + nom de la plateforme.
+ * - `inverted` : texte clair, pour un fond bleu foncé / photo.
+ * - `markOnly` : logo seul (espaces très étroits, ex. barre mobile).
+ * - `tagline`  : affiche « Haute École de Commerce de Kinshasa » sous le nom.
+ */
 export function Logo({
   size = 'md',
   inverted = false,
+  markOnly = false,
+  tagline = false,
+  stacked = false,
 }: {
-  size?: 'sm' | 'md' | 'lg';
+  size?: LogoSize;
   inverted?: boolean;
+  markOnly?: boolean;
+  tagline?: boolean;
+  /** Logo au-dessus du texte, centré (écran de connexion, pages de garde). */
+  stacked?: boolean;
 }) {
-  const box =
-    size === 'lg' ? 'h-11 w-11' : size === 'sm' ? 'h-8 w-8' : 'h-9 w-9';
-  const text =
-    size === 'lg' ? 'text-xl' : size === 'sm' ? 'text-sm' : 'text-base';
+  const s = LOGO_SIZES[size];
   return (
-    <div className="flex items-center gap-2.5">
-      <div
-        className={`${box} grid place-items-center rounded-xl bg-hec-950 shadow-glass`}
-      >
-        <MapPin
-          className="h-1/2 w-1/2 text-hec-400"
-          strokeWidth={2.5}
-          aria-hidden="true"
+    <div className={stacked ? 'flex flex-col items-center gap-3 text-center' : 'flex items-center gap-2.5'}>
+      <span className="inline-flex shrink-0 rounded-lg bg-white p-0.5 shadow-sm">
+        <img
+          src={HEC_LOGO_SRC}
+          alt={HEC_LOGO_ALT}
+          width={199}
+          height={254}
+          decoding="async"
+          className={`${s.img} w-auto object-contain`}
         />
-      </div>
-      <div className="leading-tight">
-        <div
-          className={`font-display font-extrabold ${text} ${
-            inverted ? 'text-white' : 'text-hec-950'
-          }`}
-        >
-          HEC <span className="text-hec-500">Localisation</span>
-        </div>
-      </div>
+      </span>
+      {!markOnly && (
+        <span className={`min-w-0 leading-tight ${stacked ? 'text-center' : 'text-left'}`}>
+          <span
+            className={`block font-display font-extrabold ${s.text} ${
+              inverted ? 'text-white' : 'text-hec-950 dark:text-white'
+            }`}
+          >
+            HEC <span className={inverted ? 'text-gold-400' : 'text-hec-500 dark:text-gold-400'}>Localisation</span>
+          </span>
+          {tagline && (
+            <span
+              className={`mt-0.5 block ${s.sub} font-medium ${
+                inverted ? 'text-white/70' : 'text-slate-500 dark:text-slate-300'
+              }`}
+            >
+              Haute École de Commerce de Kinshasa
+            </span>
+          )}
+        </span>
+      )}
     </div>
   );
 }
