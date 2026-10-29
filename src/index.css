@@ -65,9 +65,8 @@ body {
 
 @layer utilities {
   .glass {
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    /* Surface opaque : le flou d'arrière-plan rendait les textes des panneaux flous. */
+    background: rgba(255, 255, 255, 0.97);
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -138,7 +137,7 @@ body {
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 :where(html.dark) .to-slate-50 { --tw-gradient-to: #0d1533 var(--tw-gradient-to-position); }
-:where(html.dark) .glass { background: rgba(16, 25, 58, 0.78); }
+:where(html.dark) .glass { background: rgba(16, 25, 58, 0.97); }
 
 :where(html.dark) .text-hec-950,
 :where(html.dark) .text-hec-900,

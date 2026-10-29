@@ -26,6 +26,29 @@ export interface PlaceResult {
   lng: number;
   lat: number;
   source: 'maptiler' | 'nominatim';
+  /**
+   * Précision du point renvoyé. « approximate » = quartier, commune, rue entière, ville… : le point
+   * est un centre représentatif, pas une entrée réelle. Absent = non déterminée (jamais présumée précise).
+   */
+  precision?: 'precise' | 'approximate';
+}
+
+const MAPTILER_PRECISE_TYPES = new Set(['address', 'poi']);
+const NOMINATIM_PRECISE_CLASSES = new Set([
+  'building', 'amenity', 'shop', 'office', 'tourism', 'leisure', 'healthcare', 'craft', 'historic', 'man_made',
+]);
+
+/** Précision d'un résultat MapTiler à partir de ses `place_type` (ou undefined si absent). */
+export function maptilerPrecision(placeType: unknown): PlaceResult['precision'] {
+  if (!Array.isArray(placeType) || placeType.length === 0) return undefined;
+  return placeType.some((t) => typeof t === 'string' && MAPTILER_PRECISE_TYPES.has(t)) ? 'precise' : 'approximate';
+}
+
+/** Précision d'un résultat Nominatim à partir de `class` / `addresstype` (ou undefined). */
+export function nominatimPrecision(cls: unknown, addresstype: unknown): PlaceResult['precision'] {
+  if (typeof cls !== 'string' && typeof addresstype !== 'string') return undefined;
+  if (addresstype === 'house' || addresstype === 'building') return 'precise';
+  return typeof cls === 'string' && NOMINATIM_PRECISE_CLASSES.has(cls) ? 'precise' : 'approximate';
 }
 
 export type GeocodeErrorKind =
@@ -148,7 +171,8 @@ export function parseMapTiler(json: unknown): PlaceResult[] {
     const id = `mt:${String(f.id ?? `${lng},${lat}`)}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, name, label, lng, lat, source: 'maptiler' });
+    const precision = maptilerPrecision(f.place_type);
+    out.push(precision ? { id, name, label, lng, lat, source: 'maptiler', precision } : { id, name, label, lng, lat, source: 'maptiler' });
   }
   return out.slice(0, RESULT_LIMIT);
 }
@@ -168,7 +192,12 @@ export function parseNominatim(json: unknown): PlaceResult[] {
     const id = `nom:${String(it.osm_type ?? 'x')}/${String(it.osm_id ?? it.place_id ?? `${lng},${lat}`)}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, name, label: label || name, lng, lat, source: 'nominatim' });
+    const precision = nominatimPrecision(it.class, it.addresstype);
+    out.push(
+      precision
+        ? { id, name, label: label || name, lng, lat, source: 'nominatim', precision }
+        : { id, name, label: label || name, lng, lat, source: 'nominatim' },
+    );
   }
   return out.slice(0, RESULT_LIMIT);
 }

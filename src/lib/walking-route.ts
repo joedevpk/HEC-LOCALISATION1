@@ -16,7 +16,7 @@
 import { haversine, type RouteResult } from '@/lib/nav';
 import { isNullIsland, isValidCoordinates } from '@/lib/geo-validation';
 
-export type WalkingRouterProvider = 'ors' | 'osrm' | 'none';
+export type WalkingRouterProvider = 'proxy' | 'ors' | 'osrm' | 'none';
 
 export type WalkingRouteErrorKind =
   | 'not_configured'
@@ -30,6 +30,8 @@ export type WalkingRouteErrorKind =
   | 'network_error'
   /** Requête refusée comme mal formée par le moteur (≠ « aucun chemin ») : erreur de configuration/intégration. */
   | 'bad_request'
+  /** Départ/arrivée hors de la zone couverte par le service. */
+  | 'out_of_area'
   | 'invalid_response';
 
 export class WalkingRouteError extends Error {
@@ -46,13 +48,25 @@ type EnvLike = Record<string, unknown>;
 
 export interface WalkingRouterConfig {
   provider: WalkingRouterProvider;
+  /** Clé ORS embarquée dans le navigateur : MODE HÉRITÉ ('ors'), à remplacer par 'proxy'. */
   apiKey?: string;
   baseUrl?: string;
+  /** 'proxy' : clé publique « anon » Supabase (déjà publique par conception) pour appeler l'Edge Function. */
+  anonKey?: string;
 }
 
 export function resolveWalkingRouter(env: EnvLike = import.meta.env as EnvLike): WalkingRouterConfig {
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   const p = str(env.VITE_ROUTING_PROVIDER).toLowerCase();
+  // Mode recommandé : la clé ORS reste sur le serveur (Edge Function Supabase « route-walking »).
+  if (p === 'proxy') {
+    const explicit = str(env.VITE_ROUTING_PROXY_URL);
+    const supa = str(env.VITE_SUPABASE_URL).replace(/\/+$/, '');
+    const url = /^https?:\/\//i.test(explicit) ? explicit.replace(/\/+$/, '') : /^https?:\/\//i.test(supa) ? `${supa}/functions/v1/route-walking` : '';
+    const anon = str(env.VITE_SUPABASE_ANON_KEY);
+    if (url && anon) return { provider: 'proxy', baseUrl: url, anonKey: anon };
+    return { provider: 'none' };
+  }
   if (p === 'ors' && str(env.VITE_ROUTING_API_KEY)) {
     return { provider: 'ors', apiKey: str(env.VITE_ROUTING_API_KEY) };
   }
@@ -71,6 +85,7 @@ const TIMEOUT_MS = 15_000;
 export const MAX_WALK_STRAIGHT_KM = 25;
 
 const PROVIDER_LABEL: Record<Exclude<WalkingRouterProvider, 'none'>, string> = {
+  proxy: 'openrouteservice (OpenStreetMap)',
   ors: 'openrouteservice (OpenStreetMap)',
   osrm: 'OSRM (OpenStreetMap)',
 };
@@ -121,6 +136,16 @@ function assertEndpointsNearRequest(line: [number, number][], req: RouteRequestP
   }
 }
 
+/** Longueur réelle de la géométrie renvoyée (somme des segments, en mètres). */
+export function polylineLengthMeters(line: [number, number][]): number {
+  let total = 0;
+  for (let i = 1; i < line.length; i++) total += haversine(line[i - 1], line[i]);
+  return total;
+}
+
+/** Au-delà de cet écart relatif, la distance annoncée par le moteur est jugée incohérente avec son tracé. */
+export const MAX_DISTANCE_MISMATCH = 0.25;
+
 function finish(
   provider: Exclude<WalkingRouterProvider, 'none'>,
   coordinates: [number, number][],
@@ -135,9 +160,14 @@ function finish(
     throw new WalkingRouteError('Distance ou durée invalide dans la réponse.', 'invalid_response');
   }
   assertEndpointsNearRequest(coordinates, req);
+  // La distance affichée doit correspondre au tracé affiché : si le total annoncé par le moteur
+  // s'écarte trop de la géométrie réellement renvoyée, c'est la géométrie qui fait foi.
+  const geometryDist = polylineLengthMeters(coordinates);
+  const mismatch = geometryDist > 0 ? Math.abs(dist - geometryDist) / geometryDist : 0;
+  const finalDist = mismatch > MAX_DISTANCE_MISMATCH ? geometryDist : dist;
   return {
     coordinates,
-    distanceMeters: dist,
+    distanceMeters: finalDist,
     durationMinutes: Math.max(1, Math.round(dur / 60)),
     steps,
     usedNetwork: true,
@@ -213,7 +243,18 @@ export async function fetchWalkingRoute(
 
   let res: Response;
   try {
-    if (config.provider === 'ors') {
+    if (config.provider === 'proxy') {
+      res = await fetch(config.baseUrl ?? '', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: config.anonKey ?? '',
+          Authorization: `Bearer ${config.anonKey ?? ''}`,
+        },
+        body: JSON.stringify({ from, to }),
+        signal: controller.signal,
+      });
+    } else if (config.provider === 'ors') {
       res = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/geo+json', Authorization: config.apiKey ?? '' },
@@ -247,7 +288,9 @@ export async function fetchWalkingRoute(
     };
 
     if (!res.ok) {
-      throw classifyRoutingFailure(config.provider, res.status, await readJson());
+      throw config.provider === 'proxy'
+        ? classifyProxyFailure(res.status, await readJson())
+        : classifyRoutingFailure(config.provider, res.status, await readJson());
     }
 
     const json = await readJson();
@@ -255,11 +298,44 @@ export async function fetchWalkingRoute(
       throw new WalkingRouteError('Réponse du service d’itinéraire illisible.', 'invalid_response');
     }
     const req: RouteRequestPoints = { from, to };
-    return config.provider === 'ors' ? parseOrs(json, req) : parseOsrm(json, req);
+    return config.provider === 'osrm' ? parseOsrm(json, req) : parseOrs(json, req);
   } finally {
     clearTimeout(timer);
     opts.signal?.removeEventListener('abort', onAbort);
   }
+}
+
+/**
+ * Erreurs renvoyées par NOTRE proxy : { error: { kind, message } }. Le message est déjà rédigé
+ * côté serveur pour l'utilisateur ; on ne le remplace par un texte générique que s'il manque.
+ * Un 401/403 sans corps de proxy vient de la passerelle Supabase (jeton refusé), pas d'ORS.
+ */
+export function classifyProxyFailure(status: number, body: unknown): WalkingRouteError {
+  const e = (body as { error?: { kind?: unknown; message?: unknown } } | null | undefined)?.error;
+  const kind = typeof e?.kind === 'string' ? e.kind : '';
+  const message = typeof e?.message === 'string' && e.message ? e.message : '';
+  const map: Record<string, WalkingRouteErrorKind> = {
+    invalid_request: 'bad_request',
+    invalid_points: 'invalid_points',
+    out_of_area: 'out_of_area',
+    too_far: 'too_far',
+    no_route: 'no_route',
+    rate_limited: 'rate_limited',
+    not_configured: 'not_configured',
+    service_misconfigured: 'bad_request',
+    upstream_unavailable: 'network_error',
+    timeout: 'timeout',
+    bad_request: 'bad_request',
+  };
+  if (kind && map[kind]) return new WalkingRouteError(message || 'Le service d’itinéraire a signalé une erreur.', map[kind]);
+  if (status === 401 || status === 403) {
+    return new WalkingRouteError('Accès refusé au service d’itinéraire (jeton Supabase ou origine non autorisée).', 'forbidden');
+  }
+  if (status === 429) return new WalkingRouteError('Quota du service d’itinéraire atteint : réessayez plus tard.', 'rate_limited');
+  if (status === 404) {
+    return new WalkingRouteError('Service d’itinéraire introuvable (fonction non déployée ?). Contactez un administrateur.', 'not_configured');
+  }
+  return new WalkingRouteError(`Service d’itinéraire indisponible (${status}).`, 'network_error');
 }
 
 /** Corps d'erreur ORS : { error: { code, message } } (ou chaîne) ; OSRM : { code, message }. */

@@ -62,7 +62,24 @@ export type BuildingCategory =
   | 'admin'
   | 'student_life';
 
-export interface Building {
+/** Statut de validation d'une donnée institutionnelle (migration 20261026090000). */
+export type VerificationStatus = 'pending' | 'validated' | 'archived';
+
+/** Champs de provenance/qualité communs (absents tant que la migration n'est pas appliquée). */
+export interface DataQualityFields {
+  verification_status?: VerificationStatus;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  /** 'seed_demo' = donnée d'exemple ; 'import_csv', 'admin', 'field_survey'… */
+  data_source?: string | null;
+  /** Précision déclarée des coordonnées, en mètres (null = inconnue). */
+  location_accuracy?: number | null;
+  photo_verified?: boolean;
+}
+
+export type PhotoKind = 'cover' | 'exterior' | 'entrance' | 'interior' | 'other';
+
+export interface Building extends DataQualityFields {
   id: string;
   campus_id: string;
   name: string;
@@ -97,6 +114,11 @@ export interface BuildingImage {
   is_primary: boolean;
   sort_order: number;
   created_at: string;
+  /** Migration 20261027090000 : archivage, validation et type de photo. */
+  archived_at?: string | null;
+  verification_status?: VerificationStatus;
+  verified_at?: string | null;
+  photo_kind?: PhotoKind;
 }
 
 export interface Floor {
@@ -119,7 +141,7 @@ export type LocationKind =
   | 'exit'
   | 'facility';
 
-export interface CampusLocation {
+export interface CampusLocation extends DataQualityFields {
   id: string;
   building_id: string | null;
   floor_id: string | null;
@@ -160,6 +182,10 @@ export interface LocationImage {
   is_primary: boolean;
   sort_order: number;
   created_at: string;
+  archived_at?: string | null;
+  verification_status?: VerificationStatus;
+  verified_at?: string | null;
+  photo_kind?: PhotoKind;
 }
 
 // ---------------------------------------------------------------------

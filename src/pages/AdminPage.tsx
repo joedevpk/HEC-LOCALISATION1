@@ -11,6 +11,7 @@ import {
   QrCode,
   Settings2,
   ShieldAlert,
+  ShieldCheck,
   Stethoscope,
   Users,
   Search as SearchIcon,
@@ -28,6 +29,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AdminUsersManager } from '@/components/AdminUsersManager';
 import { AdminQRManager } from '@/components/AdminQRManager';
 import { AdminDiagnosticPanel } from '@/components/AdminDiagnosticPanel';
+import { AdminDataGovernance } from '@/components/AdminDataGovernance';
 import { isAdminRole, isFullAdminRole } from '@/lib/roles';
 import type { RouteSegment } from '@/lib/types';
 
@@ -59,7 +61,7 @@ export function AdminPage() {
   const [popularSearches, setPopularSearches] = useState<{ query: string; count: number }[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [section, setSection] = useState<
-    'overview' | 'manage' | 'qr' | 'users' | 'diagnostic'
+    'overview' | 'manage' | 'data' | 'qr' | 'users' | 'diagnostic'
   >('overview');
 
   // ÉTAPE 8 : conserver la logique de garde (elle est correcte) — on la
@@ -177,7 +179,7 @@ export function AdminPage() {
   }
 
   const sectionSwitcher = (
-    <div className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+    <div className="mt-6 flex max-w-full flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1">
       <button
         onClick={() => setSection('overview')}
         className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
@@ -195,6 +197,15 @@ export function AdminPage() {
       >
         <Settings2 className="h-4 w-4" />
         Gérer le campus
+      </button>
+      <button
+        onClick={() => setSection('data')}
+        className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+          section === 'data' ? 'bg-hec-950 text-white' : 'text-slate-500 hover:text-hec-700'
+        }`}
+      >
+        <ShieldCheck className="h-4 w-4" />
+        Données
       </button>
       <button
         onClick={() => setSection('qr')}
@@ -233,6 +244,7 @@ export function AdminPage() {
   // changent que de sous-titre.
   const sectionSubtitle: Record<Exclude<typeof section, 'overview'>, string> = {
     manage: "Ajoutez, modifiez ou supprimez des bâtiments et des salles.",
+    data: "Qualité, validation, import CSV et journal d'audit des données institutionnelles.",
     qr: "Créez les QR codes associés aux lieux du campus ; téléchargement, impression et activation restent sur la page QR Codes publique.",
     users:
       "Consultez les comptes et leurs rôles. Le changement de rôle se fait depuis Supabase (voir ÉTAPE 9) et se reflète ici après rafraîchissement.",
@@ -293,6 +305,17 @@ export function AdminPage() {
           </ErrorBoundary>
         ) : (
           <p className="mt-6 text-sm text-slate-500">{t('common.loading')}</p>
+        )}
+      </div>
+
+      <div className={section === 'data' ? '' : 'hidden'}>
+        {campus && section === 'data' && (
+          <ErrorBoundary
+            title="La gestion des données rencontre un problème."
+            description="Le reste de l'administration continue de fonctionner — vous pouvez réessayer."
+          >
+            <AdminDataGovernance campus={campus} />
+          </ErrorBoundary>
         )}
       </div>
 

@@ -4,6 +4,7 @@ import { readPrivacyPrefs } from '@/lib/privacy-prefs';
 import { prepareImageForUpload, ImageValidationError } from '@/lib/image-compress';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type {
+  PhotoKind,
   Announcement,
   Building,
   BuildingImage,
@@ -182,10 +183,11 @@ async function attachPrimaryImages(buildings: Building[]): Promise<Building[]> {
     const ids = buildings.map((b) => b.id);
     const { data, error } = await supabase
       .from('building_images')
-      .select('building_id, public_url, is_primary')
+      .select('*')
       .in('building_id', ids);
     if (error) throw error;
-    const images = (data ?? []) as { building_id: string; public_url: string; is_primary: boolean }[];
+    // Les photos archivées ne sont jamais affichées comme photo du bâtiment.
+    const images = ((data ?? []) as (BuildingImage)[]).filter((i) => !i.archived_at);
     const counts = new Map<string, number>();
     const primaries = new Map<string, string>();
     for (const img of images) {
@@ -351,14 +353,10 @@ async function attachPrimaryImagesToLocations(
     const ids = locations.map((l) => l.id);
     const { data, error } = await supabase
       .from('location_images')
-      .select('location_id, public_url, is_primary')
+      .select('*')
       .in('location_id', ids);
     if (error) throw error;
-    const images = (data ?? []) as {
-      location_id: string;
-      public_url: string;
-      is_primary: boolean;
-    }[];
+    const images = ((data ?? []) as LocationImage[]).filter((i) => !i.archived_at);
     for (const img of images) {
       ownCounts.set(img.location_id, (ownCounts.get(img.location_id) ?? 0) + 1);
       if (img.is_primary && !ownPrimaries.has(img.location_id)) {
@@ -687,7 +685,7 @@ export async function deleteRouteNodeCascade(
 // publique et le chemin de stockage sont enregistrés en base.
 // ---------------------------------------------------------------------
 
-export async function getBuildingImages(buildingId: string): Promise<BuildingImage[]> {
+export async function getBuildingImages(buildingId: string, includeArchived = false): Promise<BuildingImage[]> {
   const { data, error } = await supabase
     .from('building_images')
     .select('*')
@@ -695,7 +693,8 @@ export async function getBuildingImages(buildingId: string): Promise<BuildingIma
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) throw normalizeError(error, `récupération des photos du bâtiment ${buildingId}`);
-  return (data ?? []) as BuildingImage[];
+  const all = (data ?? []) as BuildingImage[];
+  return includeArchived ? all : all.filter((i) => !i.archived_at);
 }
 
 /**
@@ -809,7 +808,7 @@ export async function deleteBuildingImage(image: BuildingImage): Promise<void> {
 // pattern `building_images` ci-dessus.
 // ---------------------------------------------------------------------
 
-export async function getLocationImages(locationId: string): Promise<LocationImage[]> {
+export async function getLocationImages(locationId: string, includeArchived = false): Promise<LocationImage[]> {
   const { data, error } = await supabase
     .from('location_images')
     .select('*')
@@ -817,7 +816,8 @@ export async function getLocationImages(locationId: string): Promise<LocationIma
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) throw normalizeError(error, `récupération des photos du lieu ${locationId}`);
-  return (data ?? []) as LocationImage[];
+  const all = (data ?? []) as LocationImage[];
+  return includeArchived ? all : all.filter((i) => !i.archived_at);
 }
 
 /**
@@ -905,4 +905,112 @@ export async function deleteLocationImage(image: LocationImage): Promise<void> {
       await setPrimaryLocationImage(remaining[0]);
     }
   }
+}
+
+// ---------------------------------------------------------------------
+// Gouvernance des données (passe 3) : statuts de validation, photos
+// (archivage / remplacement / métadonnées), import CSV atomique, audit.
+// Les contrôles d'accès sont appliqués par la base (RLS + triggers de
+// garde, migration 20261027090000) : ces fonctions ne font que relayer
+// les erreurs de façon lisible, elles ne remplacent aucun contrôle serveur.
+// ---------------------------------------------------------------------
+
+export type GovernedTable = 'buildings' | 'locations' | 'building_images' | 'location_images';
+
+function governanceError(error: PostgrestError, action: string): ApiError {
+  if (error.code === '42501' || /row-level security|permission denied/i.test(error.message)) {
+    return new ApiError(`Action refusée (« ${action} ») : vos droits ne le permettent pas. ${error.message}`, 'FORBIDDEN', error);
+  }
+  if (error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist|schema cache/i.test(error.message)) {
+    return new ApiError(
+      `« ${action} » impossible : la migration 20261027090000_institutional_governance.sql n'est pas encore appliquée sur ce projet Supabase.`,
+      'MIGRATION_MISSING',
+      error,
+    );
+  }
+  return normalizeError(error, action);
+}
+
+/** Valide / remet en attente. Le serveur refuse tout rôle autre qu'ADMIN / SUPER_ADMIN. */
+export async function setVerificationStatus(table: GovernedTable, id: string, status: 'pending' | 'validated'): Promise<void> {
+  const { error, data } = await supabase.from(table).update({ verification_status: status }).eq('id', id).select('id');
+  if (error) throw governanceError(error, 'changement du statut de validation');
+  if (!data || data.length === 0) throw new ApiError('Aucune ligne modifiée : élément introuvable ou droits insuffisants.', 'FORBIDDEN');
+}
+
+export async function setBuildingValidated(id: string, validated: boolean) {
+  return setVerificationStatus('buildings', id, validated ? 'validated' : 'pending');
+}
+
+export async function setImageArchived(kind: 'building' | 'location', id: string, archived: boolean): Promise<void> {
+  const table = kind === 'building' ? 'building_images' : 'location_images';
+  const { error, data } = await supabase.from(table).update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id).select('id');
+  if (error) throw governanceError(error, archived ? 'archivage de la photo' : 'restauration de la photo');
+  if (!data || data.length === 0) throw new ApiError('Aucune ligne modifiée : droits insuffisants.', 'FORBIDDEN');
+}
+
+export async function updateImageMeta(
+  kind: 'building' | 'location',
+  id: string,
+  meta: { caption?: string; photo_kind?: PhotoKind },
+): Promise<void> {
+  const table = kind === 'building' ? 'building_images' : 'location_images';
+  const { error, data } = await supabase.from(table).update(meta).eq('id', id).select('id');
+  if (error) throw governanceError(error, 'mise à jour de la photo');
+  if (!data || data.length === 0) throw new ApiError('Aucune ligne modifiée : droits insuffisants.', 'FORBIDDEN');
+}
+
+/**
+ * Remplace le FICHIER d'une photo en conservant sa ligne (ordre, principale, légende). Ordre sûr :
+ * 1) envoi du nouveau fichier ; 2) mise à jour de la ligne ; 3) suppression de l'ancien fichier.
+ * Si l'étape 2 échoue, le nouveau fichier est retiré et l'ancienne photo reste intacte.
+ * La validation d'une photo remplacée est annulée par la base (la nouvelle image doit être revue).
+ */
+export async function replaceImageFile(kind: 'building' | 'location', image: BuildingImage | LocationImage, file: File): Promise<void> {
+  const bucket = kind === 'building' ? BUILDING_IMAGES_BUCKET : LOCATION_IMAGES_BUCKET;
+  const table = kind === 'building' ? 'building_images' : 'location_images';
+  const parentId = kind === 'building' ? (image as BuildingImage).building_id : (image as LocationImage).location_id;
+  const prepared = await prepareUpload(file);
+  const ext = prepared.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const path = `${parentId}/${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await supabase.storage.from(bucket).upload(path, prepared, { cacheControl: '3600', upsert: false, contentType: prepared.type });
+  if (upErr) throw new ApiError(`Échec de l'envoi de l'image : ${upErr.message}`, 'STORAGE_UPLOAD_FAILED', upErr);
+  const { data: pub } = supabase.storage.from(bucket).getPublicUrl(path);
+  const { error, data } = await supabase.from(table).update({ storage_path: path, public_url: pub.publicUrl }).eq('id', image.id).select('id');
+  if (error || !data || data.length === 0) {
+    await supabase.storage.from(bucket).remove([path]);
+    throw error ? governanceError(error, 'remplacement de la photo') : new ApiError('Remplacement refusé : droits insuffisants.', 'FORBIDDEN');
+  }
+  await supabase.storage.from(bucket).remove([image.storage_path]);
+}
+
+export interface AuditEntry {
+  id: number;
+  created_at: string;
+  actor_id: string | null;
+  actor_role: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  entity_label: string | null;
+  details: { changed_fields?: string[]; changes?: Record<string, { from: unknown; to: unknown }> } & Record<string, unknown>;
+}
+
+export async function getAuditLog(limit = 100): Promise<AuditEntry[]> {
+  const { data, error } = await supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(Math.min(limit, 500));
+  if (error) throw governanceError(error, 'lecture du journal d\'audit');
+  return (data ?? []) as AuditEntry[];
+}
+
+export interface ImportResult { buildings_created: number; rooms_created: number; floors_created: number }
+
+/** Écrit tout le fichier dans UNE transaction côté serveur : tout est enregistré, ou rien. */
+export async function importCampusData(payload: {
+  campus_id: string;
+  buildings: unknown[];
+  rooms: unknown[];
+}): Promise<ImportResult> {
+  const { data, error } = await supabase.rpc('import_campus_data', { p_payload: payload });
+  if (error) throw governanceError(error, 'import des données');
+  return data as ImportResult;
 }

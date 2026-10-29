@@ -168,7 +168,7 @@ export function DashboardPage() {
       </div>
 
       {tab === 'home' && (
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
           <div className="space-y-8 lg:col-span-2">
             <PwaInstallBanner />
             {/* CONTINUER L'EXPLORATION */}
@@ -205,7 +205,7 @@ export function DashboardPage() {
             {/* CARTES PRINCIPALES */}
             <div>
               <SectionTitle icon={Sparkles} title="Cartes principales" />
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
                 <QuickCard
                   title="Explorer le campus"
                   desc="Ouvrir la carte du campus."
@@ -379,7 +379,7 @@ export function DashboardPage() {
               description="Les prochains événements du campus apparaîtront ici."
             />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
               {events.map((ev) => (
                 <div
                   key={ev.id}

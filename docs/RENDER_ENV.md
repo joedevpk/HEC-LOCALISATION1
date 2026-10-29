@@ -11,6 +11,8 @@
 | `VITE_SUPABASE_ANON_KEY` | clé **publique** « anon » | idem ; ne jamais y mettre `service_role` |
 | `VITE_MAP_PROVIDER` | `maptiler`, `mapbox`, `esri` ou `custom` | écran « carte non configurée » (message explicite) |
 | `VITE_MAP_API_KEY` | clé du fournisseur (sauf `custom`) | idem |
+| `VITE_ROUTING_PROVIDER` | `proxy` (recommandé) — voir `docs/ROUTING_PROXY.md` | itinéraire hors campus non calculé (message explicite) |
+| `VITE_ROUTING_API_KEY` | **à supprimer** après migration vers `proxy` (clé publique dans le navigateur) | — |
 | `VITE_MAP_STYLE_ID_<MODE>` | optionnel | les ID de style par défaut de `map-config.ts` s'appliquent |
 
 **Piège principal :** ces variables sont lues **au build**. Après modification, lancez un

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { BuildingImage, CampusLocation, LocationImage } from '@/lib/types';
+import { VerificationBadge } from '@/components/VerificationBadge';
 import { categoryLabel, locationIcon } from '@/lib/display';
 import { Button } from '@/components/ui';
 import { getBuildingImages, getLocationImages } from '@/lib/api';
@@ -26,10 +27,12 @@ import { getBuildingImages, getLocationImages } from '@/lib/api';
 function useLocationGallery(location: CampusLocation) {
   const [images, setImages] = useState<(LocationImage | BuildingImage)[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fromBuilding, setFromBuilding] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setFromBuilding(false);
     (async () => {
       try {
         const own = await getLocationImages(location.id);
@@ -40,7 +43,7 @@ function useLocationGallery(location: CampusLocation) {
         }
         if (location.building?.id) {
           const buildingImages = await getBuildingImages(location.building.id);
-          if (!cancelled) setImages(buildingImages);
+          if (!cancelled) { setImages(buildingImages); setFromBuilding(buildingImages.length > 0); }
         } else {
           setImages([]);
         }
@@ -57,11 +60,21 @@ function useLocationGallery(location: CampusLocation) {
     };
   }, [location.id, location.building?.id]);
 
-  return { images, loading };
+  return { images, loading, fromBuilding };
+}
+
+/** État explicite : aucune photo réelle n'existe. Jamais remplacé par une image générique présentée comme réelle. */
+function PhotoUnavailable() {
+  return (
+    <div role="img" aria-label="Photo non disponible" className="mb-4 flex h-40 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center dark:border-hec-700 dark:bg-hec-900">
+      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Photo non disponible</span>
+      <span className="mt-0.5 px-4 text-xs text-slate-600 dark:text-slate-300">Aucune photographie officielle n’a encore été ajoutée.</span>
+    </div>
+  );
 }
 
 function LocationGallery({ location }: { location: CampusLocation }) {
-  const { images, loading } = useLocationGallery(location);
+  const { images, loading, fromBuilding } = useLocationGallery(location);
   const [index, setIndex] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -75,13 +88,14 @@ function LocationGallery({ location }: { location: CampusLocation }) {
   // Pendant le chargement (ou en cas d'échec sans repli), on garde
   // l'ancien comportement une-seule-photo pour ne rien casser.
   if (!loading && images.length === 0) {
-    if (!fallbackUrl) return null;
+    if (!fallbackUrl) return <PhotoUnavailable />;
     return (
-      <img
-        src={fallbackUrl}
-        alt={location.name}
-        className="mb-4 h-40 w-full rounded-2xl object-cover"
-      />
+      <div className="relative mb-4">
+        <img src={fallbackUrl} alt={`${location.building?.name ?? location.name} (photo du bâtiment)`} loading="lazy" decoding="async" className="h-40 w-full rounded-2xl object-cover" />
+        {!location.primary_image_url && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white">Photo du bâtiment — pas de photo de la salle</span>
+        )}
+      </div>
     );
   }
 
@@ -120,6 +134,10 @@ function LocationGallery({ location }: { location: CampusLocation }) {
           />
         ))}
       </div>
+
+      {fromBuilding && (
+        <span className="absolute bottom-2 left-2 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white">Photos du bâtiment — pas de photo de la salle</span>
+      )}
 
       {images.length > 1 && (
         <>
@@ -211,6 +229,7 @@ export function LocationDetail({
             <h2 className="font-display text-xl font-bold text-hec-950 dark:text-white">
               {location.name}
             </h2>
+            <div className="mt-1"><VerificationBadge entity={location} /></div>
           </div>
         </div>
         <button
@@ -250,7 +269,7 @@ export function LocationDetail({
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-1 mt-5 flex items-center gap-2 bg-white/95 px-1 pb-1 pt-2 backdrop-blur-sm dark:bg-hec-900/95">
+      <div className="sticky bottom-0 -mx-1 mt-5 flex items-center gap-2 bg-white/95 px-1 pb-1 pt-2 dark:bg-hec-900/95">
         <Button
           size="lg"
           className="flex-1"

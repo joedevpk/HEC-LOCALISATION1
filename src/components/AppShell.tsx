@@ -430,14 +430,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       </div>
 
       {/* Mobile "Plus" sheet: full menu with every section */}
       {moreOpen && (
         <div className="fixed inset-0 z-[60] flex flex-col justify-end md:hidden">
           <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30"
             onClick={() => setMoreOpen(false)}
             aria-hidden="true"
           />
@@ -521,7 +521,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-100 bg-white/95 px-2 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur dark:border-hec-800 dark:bg-hec-900/95 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-100 bg-white/95 px-2 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 dark:border-hec-800 dark:bg-hec-900/95 md:hidden">
         {bottomNav.map((item) => (
           <button
             key={item.path}

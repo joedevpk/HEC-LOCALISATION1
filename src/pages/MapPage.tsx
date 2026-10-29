@@ -36,6 +36,7 @@ import { LocationSearch } from '@/components/LocationSearch';
 import { POIFilters } from '@/components/POIFilters';
 import { RoutePanel } from '@/components/RoutePanel';
 import { readFallbackCampus, type FallbackReason } from '@/lib/map-resilience';
+import { OriginAddressSearch } from '@/components/OriginAddressSearch';
 import { PlaceSearchSection } from '@/components/PlaceSearchSection';
 import { usePlaceSearch } from '@/lib/use-place-search';
 import type { PlaceResult } from '@/lib/geocoding';
@@ -46,6 +47,13 @@ import {
   isWalkingRouterConfigured,
   resolveWalkingRouter,
 } from '@/lib/walking-route';
+import {
+  decideOnFailure,
+  decideOnRecompute,
+  routeForDestination,
+  staleRouteWarning,
+  type RouteTag,
+} from '@/lib/route-session';
 import { Button, EmptyState, Spinner } from '@/components/ui';
 import {
   findRoute,
@@ -476,6 +484,15 @@ export function MapPage() {
   );
   const placeSearch = usePlaceSearch(placeQuery, placeProximity);
 
+  // Départ choisi depuis une adresse/un lieu recherché ET confirmé par l'utilisateur : coordonnées
+  // exactement celles renvoyées par le service de recherche, jamais déduites.
+  const confirmAddressOrigin = useCallback((place: PlaceResult) => {
+    originSourceRef.current = 'manual';
+    lastOriginPointRef.current = [place.lng, place.lat];
+    setOrigin(syntheticOrigin([place.lng, place.lat], `Départ : ${place.name}`));
+    setOriginAccuracyMeters(null);
+  }, []);
+
   const pickPlace = useCallback(
     (place: PlaceResult) => {
       const poi: ExternalPOI = {
@@ -502,6 +519,13 @@ export function MapPage() {
   // --- Itinéraire piéton hors campus (service externe, voir lib/walking-route) ---
   const [externalRouting, setExternalRouting] = useState(false);
   const [externalRouteNote, setExternalRouteNote] = useState<string | null>(null);
+  /** Destination/départ pour lesquels `routeResult` a été calculé (un tracé n'est jamais affiché pour une autre destination). */
+  const [routeTag, setRouteTag] = useState<RouteTag | null>(null);
+  const [staleRouteNote, setStaleRouteNote] = useState<string | null>(null);
+  const routeTagRef = useRef<RouteTag | null>(null);
+  useEffect(() => {
+    routeTagRef.current = routeTag;
+  }, [routeTag]);
   const lastExternalRouteRef = useRef<{ destId: string; origin: [number, number] } | null>(null);
 
   const poiLocations = useMemo(
@@ -782,16 +806,20 @@ export function MapPage() {
     // Réseau piéton encore en chargement : on attend au lieu d'afficher à
     // tort "réseau non configuré".
     if (routingLoading) {
-      setRouteResult(null);
-      setRouteError(null);
+      if (!lastExternalRouteRef.current) {
+        setRouteResult(null);
+        setRouteError(null);
+      }
       return;
     }
     const outcome = findRoute(origin, selected, accessible, routeNodes, routeSegments);
     if (outcome.ok) {
       setRouteResult(outcome.route);
+      setRouteTag({ destId: selected.id, origin: [origin.lng, origin.lat] });
       setRouteError(null);
       setExternalRouting(false);
       setExternalRouteNote(null);
+      setStaleRouteNote(null);
       lastExternalRouteRef.current = null;
       cancelPendingExternal();
       return;
@@ -830,26 +858,40 @@ export function MapPage() {
     cancelPendingExternal();
     const controller = new AbortController();
     setExternalRouting(true);
-    setRouteResult(null);
+    // Même destination : le dernier tracé valide reste visible pendant le calcul.
+    // Autre destination : on l'efface, il ne doit jamais passer pour le nouveau.
+    if (decideOnRecompute(routeTagRef.current, selected.id, from) === 'clear') {
+      setRouteResult(null);
+      setRouteTag(null);
+    }
     setRouteError(null);
     setExternalRouteNote(null);
+    setStaleRouteNote(null);
     const timer = window.setTimeout(() => {
       fetchWalkingRoute(from, to, { signal: controller.signal, config: WALKING_ROUTER })
         .then((route) => {
           if (controller.signal.aborted) return;
           lastExternalRouteRef.current = { destId: selected.id, origin: from };
           setRouteResult(route);
+          setRouteTag({ destId: selected.id, origin: from });
           setRouteError(null);
           setExternalRouteNote(null);
+          setStaleRouteNote(null);
         })
         .catch((err: unknown) => {
           if (controller.signal.aborted) return;
+          const reason =
+            err instanceof WalkingRouteError ? err.message : "Impossible de calculer l'itinéraire piéton.";
+          if (decideOnFailure(routeTagRef.current, selected.id, from) === 'keep-previous-with-warning') {
+            // Échec transitoire (quota, réseau…) : on ne détruit pas un tracé valide de la même destination.
+            setStaleRouteNote(staleRouteWarning(reason));
+            return;
+          }
           lastExternalRouteRef.current = null;
           setRouteResult(null);
+          setRouteTag(null);
           setRouteError(outcome.error);
-          setExternalRouteNote(
-            err instanceof WalkingRouteError ? err.message : "Impossible de calculer l'itinéraire piéton.",
-          );
+          setExternalRouteNote(reason);
         })
         .finally(() => {
           if (pendingExternalRef.current?.controller === controller) pendingExternalRef.current = null;
@@ -901,6 +943,9 @@ export function MapPage() {
     // Échec du recalcul : on garde volontairement le dernier itinéraire
     // valide (jamais de route supprimée pendant que l'utilisateur marche).
   }, [navigationActive, routeResult, selected, geoFix, accessible, routeNodes, routeSegments]);
+
+  // Tracé réellement affichable : uniquement s'il correspond à la destination courante.
+  const displayRoute = routeForDestination(routeResult, routeTag, selected?.id);
 
   const startRoute = useCallback(
     (destination: CampusLocation) => selectRouteDestination(destination),
@@ -1062,7 +1107,7 @@ export function MapPage() {
           externalPois={filteredExternalPois}
           focusLocation={panelMode === 'detail' || panelMode === 'route' ? selected : null}
           originLocation={panelMode === 'route' ? origin : null}
-          routeCoordinates={routeResult?.coordinates ?? null}
+          routeCoordinates={displayRoute?.coordinates ?? null}
           styleMode={styleMode}
           manualPickMode={manualPickMode}
           onSelectBuilding={(b) => {
@@ -1140,7 +1185,7 @@ export function MapPage() {
           gauche permet de le rouvrir. */}
       {desktopPanelOpen && (
         <aside className="pointer-events-none absolute inset-y-4 left-4 z-20 hidden w-[392px] flex-col gap-3 lg:flex">
-          <div className="pointer-events-auto flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-panel backdrop-blur-sm">
+          <div className="pointer-events-auto flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 shadow-panel">
             {/* Header */}
             <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-hec-950 text-white">
@@ -1219,26 +1264,28 @@ export function MapPage() {
               />
             )}
 
-            {panelMode === 'route' && selected && origin && !routeResult && !routeError && (routingLoading || externalRouting) && (
+            {panelMode === 'route' && selected && origin && !displayRoute && !routeError && (routingLoading || externalRouting) && (
               <div className="flex items-center gap-2 py-6 text-sm text-slate-500" role="status">
                 <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Chargement du réseau piéton…
               </div>
             )}
 
-            {panelMode === 'route' && selected && origin && (routeResult || routeError) && (
+            {panelMode === 'route' && selected && origin && (displayRoute || routeError) && (
               <RoutePanel
                 origin={origin}
                 destination={selected}
-                route={routeResult}
+                route={displayRoute}
+                loading={externalRouting && !!displayRoute}
                 error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}
-                warning={originWarning}
+                warning={staleRouteNote ?? originWarning}
                 onToggleAccessible={() => setAccessible((a) => !a)}
                 onClose={closePanel}
                 onUseMyLocation={requestGeolocation}
+                originExtra={<OriginAddressSearch proximity={placeProximity} onConfirm={confirmAddressOrigin} />}
                 onStart={() => setNavigationActive(true)}
                 onRecenter={handleLocateClick}
                 onChangeDestination={() => {
@@ -1291,7 +1338,7 @@ export function MapPage() {
           onClick={() => setDesktopPanelOpen(true)}
           aria-label="Afficher le panneau du campus"
           title="Afficher le panneau"
-          className="absolute left-4 top-4 z-20 hidden items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/95 py-2.5 pl-3 pr-3.5 text-xs font-semibold text-hec-950 shadow-panel backdrop-blur-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hec-500 lg:flex"
+          className="absolute left-4 top-4 z-20 hidden items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/95 py-2.5 pl-3 pr-3.5 text-xs font-semibold text-hec-950 shadow-panel transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hec-500 lg:flex"
         >
           <ChevronRight className="h-4 w-4" />
           <Compass className="h-4 w-4" />
@@ -1302,7 +1349,7 @@ export function MapPage() {
 
       {/* Sélecteur de styles */}
       <div className="absolute right-4 top-4 z-20 hidden lg:block">
-        <div className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/95 p-1 shadow-glass backdrop-blur-sm">
+        <div className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/95 p-1 shadow-glass">
           {MAP_STYLE_MODES.map((mode) => {
             const Icon = styleModeIcons[mode];
             // En secours, seul le plan standard est réellement affiché.
@@ -1422,7 +1469,7 @@ export function MapPage() {
                 ? 'Réduire les informations du campus'
                 : 'Développer les informations du campus'
             }
-            className="flex min-h-11 w-full items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/95 px-3.5 py-2 shadow-glass backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hec-500"
+            className="flex min-h-11 w-full items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/95 px-3.5 py-2 shadow-glass focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hec-500"
           >
             <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-hec-950">
@@ -1436,7 +1483,7 @@ export function MapPage() {
             />
           </button>
           {mobileCampusOpen && (
-            <div className="mt-1.5 animate-fade-up rounded-2xl border border-slate-200/70 bg-white/95 px-3.5 py-3 shadow-glass backdrop-blur-sm">
+            <div className="mt-1.5 animate-fade-up rounded-2xl border border-slate-200/70 bg-white/95 px-3.5 py-3 shadow-glass">
               <p className="text-xs text-slate-500">{activeCampus.tagline}</p>
             </div>
           )}
@@ -1445,7 +1492,7 @@ export function MapPage() {
         {mobileMapControlsOpen && (
           <div className="animate-fade-up space-y-2 md:mx-auto md:w-full md:max-w-md">
             <div
-              className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/95 p-1.5 shadow-glass backdrop-blur-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/70 bg-white/95 p-1.5 shadow-glass [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               role="tablist"
               aria-label="Style de carte"
             >
@@ -1471,7 +1518,7 @@ export function MapPage() {
               })}
             </div>
 
-            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-1.5 shadow-glass backdrop-blur-sm [&_[role=listbox]]:overflow-x-auto [&_[role=listbox]]:[-ms-overflow-style:none] [&_[role=listbox]]:[scrollbar-width:none] [&_[role=listbox]::-webkit-scrollbar]:hidden">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-1.5 shadow-glass [&_[role=listbox]]:overflow-x-auto [&_[role=listbox]]:[-ms-overflow-style:none] [&_[role=listbox]]:[scrollbar-width:none] [&_[role=listbox]::-webkit-scrollbar]:hidden">
               <POIFilters active={poiFilter} onChange={setPoiFilter} />
             </div>
           </div>
@@ -1544,7 +1591,7 @@ export function MapPage() {
 
       {/* Carte indisponible */}
       {mapError && (
-        <div className="absolute inset-0 z-30 grid place-items-center bg-white/90 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 grid place-items-center bg-white/90">
           <EmptyState
             icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
             title={mapError}
@@ -1644,26 +1691,28 @@ export function MapPage() {
               />
             )}
 
-            {panelMode === 'route' && selected && origin && !routeResult && !routeError && (routingLoading || externalRouting) && (
+            {panelMode === 'route' && selected && origin && !displayRoute && !routeError && (routingLoading || externalRouting) && (
               <div className="flex items-center gap-2 py-6 text-sm text-slate-500" role="status">
                 <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 Chargement du réseau piéton…
               </div>
             )}
 
-            {panelMode === 'route' && selected && origin && (routeResult || routeError) && (
+            {panelMode === 'route' && selected && origin && (displayRoute || routeError) && (
               <RoutePanel
                 origin={origin}
                 destination={selected}
-                route={routeResult}
+                route={displayRoute}
+                loading={externalRouting && !!displayRoute}
                 error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}
-                warning={originWarning}
+                warning={staleRouteNote ?? originWarning}
                 onToggleAccessible={() => setAccessible((a) => !a)}
                 onClose={closePanel}
                 onUseMyLocation={requestGeolocation}
+                originExtra={<OriginAddressSearch proximity={placeProximity} onConfirm={confirmAddressOrigin} />}
                 onStart={() => setNavigationActive(true)}
                 onRecenter={handleLocateClick}
                 onChangeDestination={() => {
@@ -1713,7 +1762,7 @@ export function MapPage() {
 
       {/* Légende */}
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 hidden -translate-x-1/2 lg:block">
-        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-slate-200/70 bg-white/95 px-4 py-2 text-xs text-slate-600 shadow-glass backdrop-blur-sm">
+        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-slate-200/70 bg-white/95 px-4 py-2 text-xs text-slate-600 shadow-glass">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-hec-500" />
             {buildingCategoryLabels.academic}

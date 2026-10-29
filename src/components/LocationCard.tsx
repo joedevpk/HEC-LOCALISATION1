@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import type { CampusLocation } from '@/lib/types';
 import { categoryLabel, locationIcon } from '@/lib/display';
+import { verificationInfo } from '@/lib/data-quality';
 
 export function LocationCard({
   location,
@@ -20,7 +21,9 @@ export function LocationCard({
       {location.primary_image_url || location.building?.primary_image_url ? (
         <img
           src={location.primary_image_url ?? location.building?.primary_image_url ?? ''}
-          alt={location.name}
+          alt={location.primary_image_url ? location.name : `${location.building?.name ?? location.name} (photo du bâtiment)`}
+          loading="lazy"
+          decoding="async"
           className="h-11 w-11 shrink-0 rounded-xl object-cover"
         />
       ) : (
@@ -42,6 +45,9 @@ export function LocationCard({
             </span>
           )}
         </span>
+        {!verificationInfo(location).confirmed && (
+          <span className="mt-0.5 block text-[11px] font-semibold text-amber-800 dark:text-amber-300">Non validé</span>
+        )}
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <span>{categoryLabel(location)}</span>
           {location.building && (

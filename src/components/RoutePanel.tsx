@@ -12,7 +12,7 @@ import {
   Waypoints,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { CampusLocation } from '@/lib/types';
 import type { RouteResult } from '@/lib/nav';
 import { formatDistance } from '@/lib/nav';
@@ -44,6 +44,7 @@ export function RoutePanel({
   onChangeDestination,
   navigation = null,
   warning = null,
+  originExtra = null,
 }: {
   /** `null` tant qu'aucun point de départ n'a été choisi (état initial). */
   origin: CampusLocation | null;
@@ -87,6 +88,8 @@ export function RoutePanel({
    * clairement qualifiée. `null`/omis : rien ne s'affiche.
    */
   warning?: string | null;
+  /** Contenu optionnel sous le sélecteur de départ (ex. recherche d'adresse). */
+  originExtra?: ReactNode;
 }) {
   const hasDuration = typeof route?.durationMinutes === 'number';
   const hasSteps = !!route && route.steps.length > 0;
@@ -152,7 +155,7 @@ export function RoutePanel({
       {loading && !error && (
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm font-medium text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Calcul de l’itinéraire…
+          {route ? 'Mise à jour de l’itinéraire… (le tracé affiché reste celui du dernier calcul réussi)' : 'Calcul de l’itinéraire…'}
         </div>
       )}
 
@@ -193,6 +196,8 @@ export function RoutePanel({
             </select>
           </label>
 
+          {originExtra}
+
           <button
             onClick={onToggleAccessible}
             aria-pressed={accessible}
@@ -210,7 +215,7 @@ export function RoutePanel({
       )}
 
       {/* ---- Route calculée ---- */}
-      {!loading && !error && route && origin && (
+      {!error && route && origin && (
         <>
           {warning && (
             <div
@@ -270,6 +275,7 @@ export function RoutePanel({
                 ))}
               </select>
             </label>
+            {originExtra}
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2.5">
