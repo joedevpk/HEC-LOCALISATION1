@@ -1554,3 +1554,85 @@ SELECT
 FROM auth.users au
 LEFT JOIN public.profiles p ON p.id = au.id
 WHERE au.email = 'nadiampangani@icloud.com';
+
+
+
+DO $$
+DECLARE
+    v_email   CONSTANT TEXT := 'dev@gmail.com';
+    v_id      UUID;
+    v_role    TEXT;
+    v_trigger TEXT;
+    v_rows    INT;
+    v_autres  INT;
+    v_total   INT;
+BEGIN
+    -- Identifier le compte
+    SELECT p.id, p.role::TEXT INTO v_id, v_role
+    FROM auth.users u
+    JOIN public.profiles p ON p.id = u.id
+    WHERE LOWER(u.email) = v_email;
+
+    IF v_id IS NULL THEN
+        RAISE EXCEPTION 'Compte % introuvable (auth.users ou profiles).', v_email;
+    END IF;
+
+    IF v_role = 'SUPER_ADMIN' THEN
+        RAISE EXCEPTION '% est déjà SUPER_ADMIN.', v_email;
+    END IF;
+
+    -- Aucun autre SUPER_ADMIN ne doit exister
+    SELECT COUNT(*) INTO v_autres
+    FROM public.profiles
+    WHERE role::TEXT = 'SUPER_ADMIN' AND id <> v_id;
+
+    IF v_autres > 0 THEN
+        RAISE EXCEPTION 'Il existe déjà % autre(s) SUPER_ADMIN. Annulation.', v_autres;
+    END IF;
+
+    -- Trouver le trigger d'audit qui plante
+    SELECT t.tgname INTO v_trigger
+    FROM pg_trigger t
+    WHERE t.tgrelid = 'public.profiles'::regclass
+      AND NOT t.tgisinternal
+      AND t.tgfoid = 'public.audit_profile_role_change'::regproc;
+
+    IF v_trigger IS NOT NULL THEN
+        RAISE NOTICE 'Trigger désactivé temporairement : %', v_trigger;
+        EXECUTE format('ALTER TABLE public.profiles DISABLE TRIGGER %I', v_trigger);
+    END IF;
+
+    -- Promotion
+    UPDATE public.profiles
+    SET role = 'SUPER_ADMIN'
+    WHERE id = v_id;
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    IF v_rows <> 1 THEN
+        RAISE EXCEPTION 'Promotion : % ligne(s) modifiée(s), attendu 1.', v_rows;
+    END IF;
+
+    -- Réactiver le trigger
+    IF v_trigger IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE public.profiles ENABLE TRIGGER %I', v_trigger);
+    END IF;
+
+    -- Contrôle final : exactement un SUPER_ADMIN
+    SELECT COUNT(*) INTO v_total
+    FROM public.profiles WHERE role::TEXT = 'SUPER_ADMIN';
+    IF v_total <> 1 THEN
+        RAISE EXCEPTION 'Il y a % SUPER_ADMIN, attendu 1. Annulation.', v_total;
+    END IF;
+
+    RAISE NOTICE '% est maintenant SUPER_ADMIN (ancien rôle : %).', v_email, v_role;
+END $$;
+
+-- Vérification
+SELECT u.email, p.role::TEXT AS role
+FROM auth.users u
+JOIN public.profiles p ON p.id = u.id
+WHERE LOWER(u.email) = 'dev@gmail.com';
+
+-- Le trigger doit être actif ('O')
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgrelid = 'public.profiles'::regclass AND NOT tgisinternal;

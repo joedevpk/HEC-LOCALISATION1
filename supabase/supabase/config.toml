@@ -1,0 +1,8 @@
+# Configuration minimale pour le déploiement des Edge Functions (CLI Supabase).
+# Si votre dépôt possède déjà un config.toml, FUSIONNEZ uniquement le bloc [functions.route-walking].
+project_id = "lvjjjdibgktttldrdeqn"
+
+[functions.route-walking]
+# La sécurité JWT reste ACTIVE : les requêtes POST réelles doivent porter un JWT valide.
+# Les préflights OPTIONS sont répondus sans authentification (le navigateur n'envoie jamais d'Authorization).
+verify_jwt = true
