@@ -114,7 +114,7 @@ SELECT t.denied('le journal ne peut pas être modifié par un admin', :admin, 'a
 SELECT t.denied('le journal ne peut pas être supprimé par un admin', :admin, 'authenticated', $$DELETE FROM audit_log$$);
 SELECT t.denied('le journal ne peut pas être écrit directement', :admin, 'authenticated', $$INSERT INTO audit_log (action,entity_type) VALUES ('x','y')$$);
 SELECT t.denied('audit_write est inaccessible à un utilisateur ordinaire', :student, 'authenticated', $$SELECT audit_write('x','y','1','l','{}'::jsonb)$$);
-SELECT t.ok('le journal ne contient aucun secret (colonnes autorisées uniquement)', NOT EXISTS (SELECT 1 FROM audit_log, jsonb_object_keys(details->'changes') k WHERE k NOT IN ('name','code','verification_status','center_lng','center_lat','lng','lat','archived_at','is_primary','sort_order','photo_kind','caption')));
+SELECT t.ok('le journal ne contient aucun secret (colonnes autorisées uniquement)', NOT EXISTS (SELECT 1 FROM audit_log, jsonb_object_keys(details->'changes') k WHERE entity_type <> 'profiles' AND k NOT IN ('name','code','verification_status','center_lng','center_lat','lng','lat','archived_at','is_primary','sort_order','photo_kind','caption')));
 -- ---------- Import atomique ----------
 SELECT t.allowed('import valide par un gestionnaire', :manager, 'authenticated', $$SELECT import_campus_data('{"campus_id":"00000000-0000-4000-8000-0000000000c1","buildings":[{"code":"N1","name":"Nouveau","lng":15.34,"lat":-4.34}],"rooms":[{"building_code":"N1","floor_level":1,"code":"101","name":"Salle 101","lng":15.34,"lat":-4.34}]}'::jsonb)$$);
 SELECT t.ok('import : bâtiment et salle créés EN ATTENTE avec source import_csv', (SELECT count(*) = 1 FROM locations l JOIN buildings b ON b.id=l.building_id WHERE b.code='N1' AND l.verification_status='pending' AND l.data_source='import_csv' AND b.verification_status='pending'));
@@ -126,6 +126,35 @@ SELECT t.denied('import avec coordonnées (0,0) refusé', :manager, 'authenticat
 SELECT t.denied('import avec latitude hors plage refusé', :manager, 'authenticated', $$SELECT import_campus_data('{"campus_id":"00000000-0000-4000-8000-0000000000c1","buildings":[{"code":"Z1","name":"Hors","lng":15,"lat":95}]}'::jsonb)$$);
 SELECT t.denied('import d''une salle vers un bâtiment inconnu refusé', :manager, 'authenticated', $$SELECT import_campus_data('{"campus_id":"00000000-0000-4000-8000-0000000000c1","rooms":[{"building_code":"INCONNU","name":"S","lng":15.3,"lat":-4.3}]}'::jsonb)$$);
 SELECT t.ok('aucune ligne partielle après imports refusés', NOT EXISTS (SELECT 1 FROM buildings WHERE code IN ('Z0','Z1','NEUF')));
+-- ---------- Hiérarchie des rôles (passe 4) ----------
+INSERT INTO auth.users (id, email) VALUES
+  ('00000000-0000-4000-8000-0000000000a4', 'super@test'), ('00000000-0000-4000-8000-0000000000a5', 'admin2@test'),
+  ('00000000-0000-4000-8000-0000000000a6', 'cible@test');
+INSERT INTO profiles (id, full_name, role) VALUES
+  ('00000000-0000-4000-8000-0000000000a4', 'Super', 'SUPER_ADMIN'),
+  ('00000000-0000-4000-8000-0000000000a5', 'Admin Deux', 'ADMIN'),
+  ('00000000-0000-4000-8000-0000000000a6', 'Cible Etudiante', 'STUDENT');
+\set super '''00000000-0000-4000-8000-0000000000a4'''
+SELECT t.denied('admin ne peut pas s''attribuer SUPER_ADMIN', :admin, 'authenticated', $$UPDATE profiles SET role='SUPER_ADMIN' WHERE id='00000000-0000-4000-8000-0000000000a3'$$);
+SELECT t.denied('admin ne peut pas promouvoir un tiers SUPER_ADMIN', :admin, 'authenticated', $$UPDATE profiles SET role='SUPER_ADMIN' WHERE id='00000000-0000-4000-8000-0000000000a6'$$);
+SELECT t.denied('admin ne peut pas rétrograder un SUPER_ADMIN', :admin, 'authenticated', $$UPDATE profiles SET role='STUDENT' WHERE id='00000000-0000-4000-8000-0000000000a4'$$);
+SELECT t.denied('admin ne peut pas modifier son propre rôle', :admin, 'authenticated', $$UPDATE profiles SET role='CAMPUS_MANAGER' WHERE id='00000000-0000-4000-8000-0000000000a3'$$);
+SELECT t.denied('super-admin ne peut pas modifier son propre rôle', :super, 'authenticated', $$UPDATE profiles SET role='ADMIN' WHERE id='00000000-0000-4000-8000-0000000000a4'$$);
+SELECT t.denied('gestionnaire ne peut pas promouvoir un compte', :manager, 'authenticated', $$UPDATE profiles SET role='CAMPUS_MANAGER' WHERE id='00000000-0000-4000-8000-0000000000a6'$$);
+SELECT t.denied('étudiant ne peut pas s''attribuer ADMIN (INSERT direct refusé aussi)', :student, 'authenticated', $$INSERT INTO profiles (id, full_name, role) VALUES ('00000000-0000-4000-8000-0000000000a7','x','ADMIN')$$);
+SELECT t.allowed('admin peut nommer un gestionnaire (cas légitime conservé)', :admin, 'authenticated', $$UPDATE profiles SET role='CAMPUS_MANAGER' WHERE id='00000000-0000-4000-8000-0000000000a6'$$);
+SELECT t.allowed('super-admin peut nommer un ADMIN', :super, 'authenticated', $$UPDATE profiles SET role='ADMIN' WHERE id='00000000-0000-4000-8000-0000000000a6'$$);
+SELECT t.allowed('super-admin peut attribuer SUPER_ADMIN à un tiers', :super, 'authenticated', $$UPDATE profiles SET role='SUPER_ADMIN' WHERE id='00000000-0000-4000-8000-0000000000a6'$$);
+SELECT t.allowed('un utilisateur modifie toujours son nom sans toucher au rôle', :student, 'authenticated', $$UPDATE profiles SET full_name='Nouveau nom' WHERE id='00000000-0000-4000-8000-0000000000a1'$$);
+SELECT t.ok('les tentatives refusées n''ont pas changé les rôles', (SELECT role FROM profiles WHERE id='00000000-0000-4000-8000-0000000000a3')='ADMIN' AND (SELECT role FROM profiles WHERE id='00000000-0000-4000-8000-0000000000a4')='SUPER_ADMIN');
+SELECT t.ok('journal : un changement de rôle est tracé avec acteur, ancien et nouveau rôle', EXISTS (SELECT 1 FROM audit_log WHERE action='role_change' AND entity_type='profiles' AND actor_id='00000000-0000-4000-8000-0000000000a3' AND details->'changes'->'role'->>'from'='STUDENT' AND details->'changes'->'role'->>'to'='CAMPUS_MANAGER'));
+SELECT t.ok('journal des rôles : aucun nom ni e-mail (identifiant et rôles uniquement)', NOT EXISTS (SELECT 1 FROM audit_log WHERE entity_type='profiles' AND (entity_label <> '' OR details::text ~* '(@|Cible|Admin Deux|Etudiante)')));
+SELECT t.ok('journal des rôles : seule la clé « role » est consignée', NOT EXISTS (SELECT 1 FROM audit_log, jsonb_object_keys(details->'changes') k WHERE entity_type='profiles' AND k <> 'role'));
+-- Contexte sans JWT (SQL Editor / service_role) : voie d'administration conservée, et tracée « system ».
+UPDATE profiles SET role='STUDENT' WHERE id='00000000-0000-4000-8000-0000000000a6';
+SELECT t.ok('SQL Editor / service_role : changement de rôle toujours possible', (SELECT role FROM profiles WHERE id='00000000-0000-4000-8000-0000000000a6')='STUDENT');
+SELECT t.ok('SQL Editor : le changement est tracé avec l''acteur « system »', EXISTS (SELECT 1 FROM audit_log WHERE action='role_change' AND actor_role='system' AND details->'changes'->'role'->>'to'='STUDENT'));
+
 -- ---------- Stockage ----------
 INSERT INTO storage.buckets (id, name, public) VALUES ('building-images','building-images',true) ON CONFLICT (id) DO NOTHING;
 SELECT t.allowed('gestionnaire : dépôt d''une photo au bon chemin', :manager, 'authenticated', $$INSERT INTO storage.objects (bucket_id,name) VALUES ('building-images','00000000-0000-4000-8000-00000000b001/11111111-1111-4111-8111-111111111111.webp')$$);

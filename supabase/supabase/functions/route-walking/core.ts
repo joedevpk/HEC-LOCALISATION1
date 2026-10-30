@@ -217,3 +217,39 @@ export function corsOriginFor(requestOrigin: string | null, allowedCsv: string |
   if (requestOrigin && list.includes(requestOrigin)) return requestOrigin;
   return null;
 }
+
+/** Taille maximale acceptée pour le corps de la requête (deux coordonnées tiennent en ~100 octets). */
+export const MAX_BODY_BYTES = 2048;
+
+/**
+ * Identifiant du client pour la limitation de débit.
+ * `cf-connecting-ip` est posé par l'infrastructure (le client ne peut pas le choisir) ; on le préfère donc
+ * à `x-forwarded-for`, dont la première valeur peut être fournie par le client. À défaut, on retombe sur
+ * `x-real-ip` puis sur `x-forwarded-for`. La limite GLOBALE reste le filet de sécurité si l'en-tête est falsifié.
+ */
+export function clientKey(headers: { get(name: string): string | null }): string {
+  const pick = (name: string) => (headers.get(name) ?? '').split(',')[0].trim();
+  const raw = pick('cf-connecting-ip') || pick('x-real-ip') || pick('x-forwarded-for');
+  return raw ? raw.slice(0, 64) : 'unknown';
+}
+
+/** Lit un corps JSON borné. Renvoie null si trop gros ou illisible (kind distingue les deux cas). */
+export async function readBoundedJson(
+  req: { headers: { get(name: string): string | null }; text(): Promise<string> },
+  maxBytes: number = MAX_BODY_BYTES,
+): Promise<{ ok: true; body: unknown } | { ok: false; kind: 'too_large' | 'unreadable' }> {
+  const declared = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) return { ok: false, kind: 'too_large' };
+  let text: string;
+  try {
+    text = await req.text();
+  } catch {
+    return { ok: false, kind: 'unreadable' };
+  }
+  if (new TextEncoder().encode(text).length > maxBytes) return { ok: false, kind: 'too_large' };
+  try {
+    return { ok: true, body: JSON.parse(text) };
+  } catch {
+    return { ok: false, kind: 'unreadable' };
+  }
+}

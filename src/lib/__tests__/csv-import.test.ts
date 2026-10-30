@@ -100,3 +100,24 @@ describe('validation de l’import', () => {
     expect(p.canImport).toBe(false);
   });
 });
+
+describe('formats numériques acceptés (passe 4)', () => {
+  const ligne = (lng: string, lat: string, cap = '') => `building;B9;Bâtiment test;;;;;;;${cap};${lng};${lat};;`;
+  it('accepte les décimaux point ou virgule, signés', () => {
+    expect(run([ligne('15.3012', '-4.3198')]).canImport).toBe(true);
+    expect(run([ligne('15,3012', '-4,3198')]).canImport).toBe(true);
+    expect(run([ligne('+15.3012', '-4.3198')]).canImport).toBe(true);
+  });
+  it.each([['0x10', '-4.31'], ['15.3', '0x4'], ['1e1', '-4.31'], ['15.3', '-4e0'], ['0b11', '-4.31'], ['15.3.1', '-4.31'], ['15.3', '--4'], ['Infinity', '-4.31'], ['15,3,1', '-4.31']])(
+    'refuse « %s ; %s » au lieu de l’interpréter silencieusement',
+    (lng, lat) => {
+      const r = run([ligne(lng, lat)]);
+      expect(r.canImport).toBe(false);
+      expect(r.errors).toBeGreaterThan(0);
+      expect(r.issues.some((i) => i.severity === 'error' && i.line === 2)).toBe(true); // l'erreur désigne la ligne fautive
+    },
+  );
+  it('une capacité en notation hexadécimale est refusée', () => {
+    expect(run([`room;S1;Salle;;;B9;;;;0x10;15.3012;-4.3198;;`, ligne('15.3012', '-4.3198')]).canImport).toBe(false);
+  });
+});

@@ -23,7 +23,8 @@ vi.mock('@/lib/supabase', () => {
     },
   };
 });
-vi.mock('@/lib/image-compress', () => ({
+vi.mock('@/lib/image-compress', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/image-compress')>()),
   prepareImageForUpload: (f: File) => Promise.resolve(f),
   ImageValidationError: class extends Error { code = 'X'; },
 }));

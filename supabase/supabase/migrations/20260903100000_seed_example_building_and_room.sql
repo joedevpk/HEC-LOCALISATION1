@@ -1,28 +1,27 @@
 -- ============================================================
 -- Donnée d'exemple (démo/pédagogique) : un bâtiment complet avec son
--- entrée + une salle, pour visualiser concrètement comment la
--- localisation (lng/lat), la hiérarchie bâtiment > étage > salle, et
--- l'entrée d'un bâtiment s'articulent dans la base.
+-- entrée + une salle.
 --
--- Volontairement SÉPARÉE des autres migrations (celles-ci définissent
--- le schéma, celle-ci ne fait qu'insérer des données d'exemple) :
--- - à exécuter une seule fois APRÈS avoir créé votre campus depuis
---   l'application (elle échoue proprement si aucun campus n'existe) ;
--- - à supprimer/ignorer sans risque plus tard, ou à archiver depuis
---   l'admin (bouton "Archiver") une fois que vous avez vos vrais
---   bâtiments — voir la fin de ce fichier pour la commande de retrait.
+-- PASSE 4 — CETTE MIGRATION EST DÉSORMAIS INACTIVE PAR DÉFAUT.
+--   Avant : sur une base neuve sans campus elle levait une exception et bloquait
+--   toute la chaîne (`supabase db push` s'arrête à la première erreur) ; sur une base
+--   contenant un campus elle injectait silencieusement un bâtiment FICTIF dans les
+--   données institutionnelles.
+--   Maintenant : sans activation explicite elle ne fait RIEN (simple NOTICE), que le
+--   campus existe ou non. Le fichier est conservé pour ne pas rompre l'historique des
+--   migrations déjà appliquées (une base où elle a déjà été exécutée n'est pas modifiée).
 --
--- Ré-exécutable sans risque (IDs fixes + ON CONFLICT DO UPDATE) : si
--- vous relancez ce script, il met juste à jour les mêmes lignes au
--- lieu d'en créer des doublons.
+-- Pour insérer volontairement l'exemple (base de DÉMONSTRATION uniquement) :
+--   psql   : SET hec.allow_demo_seed = 'on';  puis exécuter ce fichier dans la même session ;
+--   SQL Editor Supabase : coller en tête `SET hec.allow_demo_seed = 'on';` puis le reste
+--   de ce fichier, le tout dans UNE seule exécution.
+-- Les lignes insérées sont marquées data_source = 'seed_demo' (visibles « Démonstration »
+-- dans l'application) et ne sont jamais validées automatiquement.
 --
--- Positionnement : les coordonnées sont calculées à partir du VRAI
--- centre de votre campus (table `campuses`), avec un petit décalage en
--- degrés équivalant à quelques dizaines de mètres — donc toujours
--- cohérentes avec votre campus réel, où qu'il se trouve dans le monde.
--- Ce ne sont PAS les coordonnées exactes d'un vrai bâtiment : à
--- corriger depuis l'admin (clic sur la carte) une fois en conditions
--- réelles.
+-- Retrait : voir la fin de ce fichier (archivage depuis l'admin, ou suppression en SQL).
+--
+-- Positionnement (si activée) : coordonnées calculées à partir du centre de `campuses`
+-- avec un petit décalage ; ce ne sont PAS les coordonnées d'un vrai bâtiment.
 -- ============================================================
 
 DO $$
@@ -37,6 +36,11 @@ DECLARE
   v_entrance_id uuid := '00000000-0000-4000-a000-000000000e01';
   v_room_id     uuid := '00000000-0000-4000-a000-000000000101';
 BEGIN
+  IF COALESCE(current_setting('hec.allow_demo_seed', true), '') <> 'on' THEN
+    RAISE NOTICE 'Migration de démonstration ignorée (hec.allow_demo_seed <> on) : aucune donnée fictive insérée.';
+    RETURN;
+  END IF;
+
   SELECT id, center_lng, center_lat
     INTO v_campus_id, v_campus_lng, v_campus_lat
   FROM campuses
@@ -163,6 +167,18 @@ BEGIN
 
   RAISE NOTICE 'Exemple inséré : bâtiment "%", étage "%", entrée "%", salle "%".',
     v_building_id, v_floor_id, v_entrance_id, v_room_id;
+END $$;
+
+-- Marquage « démonstration » si les colonnes de provenance existent déjà (exécution manuelle
+-- après 20261026090000). Sinon, cette migration de provenance marquera elle-même ces lignes.
+DO $$
+BEGIN
+  IF COALESCE(current_setting('hec.allow_demo_seed', true), '') = 'on'
+     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'buildings' AND column_name = 'data_source')
+     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'locations' AND column_name = 'data_source') THEN
+    UPDATE buildings SET data_source = 'seed_demo' WHERE id = '00000000-0000-4000-a000-000000000b01';
+    UPDATE locations SET data_source = 'seed_demo' WHERE building_id = '00000000-0000-4000-a000-000000000b01';
+  END IF;
 END $$;
 
 -- ============================================================

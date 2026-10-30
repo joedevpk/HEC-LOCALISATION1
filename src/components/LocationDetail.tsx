@@ -145,7 +145,7 @@ function LocationGallery({ location }: { location: CampusLocation }) {
             onClick={() => goTo(index - 1)}
             disabled={index === 0}
             aria-label="Photo précédente"
-            className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
+            className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white transition-opacity disabled:opacity-0"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -153,7 +153,7 @@ function LocationGallery({ location }: { location: CampusLocation }) {
             onClick={() => goTo(index + 1)}
             disabled={index === images.length - 1}
             aria-label="Photo suivante"
-            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"
+            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white transition-opacity disabled:opacity-0"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -169,7 +169,7 @@ function LocationGallery({ location }: { location: CampusLocation }) {
               />
             ))}
           </div>
-          <span className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+          <span className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-medium text-white">
             {index + 1}/{images.length}
           </span>
         </>

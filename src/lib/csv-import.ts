@@ -86,7 +86,11 @@ const lc = (s: string) => s.trim().toLowerCase();
 function num(raw: string, decimalComma: boolean): number | null {
   const t = raw.trim().replace(/\s/g, '');
   if (t === '') return null;
-  const n = Number(decimalComma ? t.replace(',', '.') : t);
+  const normalized = decimalComma ? t.replace(',', '.') : t;
+  // Notation décimale simple uniquement : Number() accepterait aussi « 0x10 » (=16), « 1e1 » (=10) ou « 0b11 »,
+  // qui seraient importés silencieusement comme coordonnées ou capacités.
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(normalized)) return null;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 function bool(raw: string): boolean | null {

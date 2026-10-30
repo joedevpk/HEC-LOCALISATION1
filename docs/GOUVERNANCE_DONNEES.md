@@ -1,10 +1,13 @@
 # Gouvernance des données institutionnelles (passe 3)
 
 ## 1. Constats de l'audit (base reconstruite et testée sur PostgreSQL 16 local avec simulation minimale de Supabase)
-1. **Toutes les migrations s'appliquent dans l'ordre** sur une base vierge, **sauf** `20260903100000_seed_example_building_and_room.sql` :
-   elle **échoue si aucun campus n'existe** (« Aucun campus trouvé ») et bloquerait `supabase db push` sur une base neuve. Elle insère aussi des
-   **données de démonstration** (un bâtiment « Bâtiment Informatique », une entrée, une salle) dans la chaîne de migrations. Historique non réécrit :
-   pour une base neuve, créer le campus avant, ou retirer cette migration de la chaîne de *votre* déploiement.
+1. **Toutes les migrations s'appliquent dans l'ordre** sur une base vierge. *(Passe 4 : constat initial corrigé.)* La migration
+   `20260903100000_seed_example_building_and_room.sql` échouait sans campus et insérait un bâtiment de démonstration dans toute base possédant
+   un campus. Elle est désormais **inactive par défaut** : sans activation explicite elle n'insère rien et ne bloque plus la chaîne (testé : base neuve
+   sans campus, avec campus, avec données, déjà migrée — `supabase/tests/20_scenarios.sh`). Le fichier est conservé pour l'historique.
+   Pour insérer volontairement l'exemple (base de **démonstration** uniquement) : `SET hec.allow_demo_seed = 'on';` puis le contenu du fichier, dans la même
+   exécution. Les lignes sont marquées `data_source = 'seed_demo'` et ne sont jamais validées automatiquement. Une base où l'ancienne version a déjà été
+   appliquée n'est pas modifiée : son bâtiment de démonstration reste identifié « seed_demo » (à archiver ou supprimer par un administrateur).
 2. **Lignes archivées lisibles publiquement** : les policies de lecture étaient `USING (true)` ; seul le client filtrait. Corrigé par la nouvelle migration (RLS).
 3. **Aucun contrôle de validation côté serveur** : tout gestionnaire pouvait modifier n'importe quelle donnée. Corrigé (triggers de garde).
 4. **Aucun journal d'audit.** Ajouté.

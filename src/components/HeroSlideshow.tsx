@@ -188,7 +188,7 @@ export function HeroSlideshow({ children }: { children: ReactNode }) {
               <button
                 onClick={() => manual(active - 1)}
                 aria-label="Photo précédente"
-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -196,14 +196,14 @@ export function HeroSlideshow({ children }: { children: ReactNode }) {
                 onClick={() => setUserPaused((v) => !v)}
                 aria-label={userPaused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}
                 aria-pressed={userPaused}
-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
               >
                 {userPaused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
               </button>
               <button
                 onClick={() => manual(active + 1)}
                 aria-label="Photo suivante"
-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
               >
                 <ChevronRight className="h-5 w-5" aria-hidden="true" />
               </button>

@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { assertValidCoordinates } from '@/lib/geo-validation';
 import { readPrivacyPrefs } from '@/lib/privacy-prefs';
-import { prepareImageForUpload, ImageValidationError } from '@/lib/image-compress';
+import { prepareImageForUpload, ImageValidationError, storageExtensionFor } from '@/lib/image-compress';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type {
   PhotoKind,
@@ -711,6 +711,20 @@ async function prepareUpload(file: File): Promise<File> {
   }
 }
 
+
+/**
+ * Retire un fichier de Storage. Un échec n'annule pas l'opération en base (déjà faite) mais ne doit pas
+ * être silencieux : il laisse un fichier orphelin, listé par supabase/diagnostics/orphan_storage_objects.sql.
+ */
+async function removeStorageFile(bucket: string, path: string): Promise<boolean> {
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) {
+    console.warn(`[storage] Fichier orphelin non supprimé (${bucket}/${path}) : ${error.message}`);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Envoie un fichier image vers Supabase Storage puis crée la ligne
  * `building_images` correspondante. Si c'est la toute première photo du
@@ -724,7 +738,7 @@ export async function uploadBuildingImage(
   file = await prepareUpload(file);
 
   const existing = await getBuildingImages(buildingId);
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const extension = storageExtensionFor(file);
   const storagePath = `${buildingId}/${crypto.randomUUID()}.${extension}`;
 
   const { error: uploadError } = await supabase.storage
@@ -785,11 +799,16 @@ export async function reorderBuildingImages(images: BuildingImage[]): Promise<vo
 }
 
 export async function deleteBuildingImage(image: BuildingImage): Promise<void> {
-  const { error } = await supabase.from('building_images').delete().eq('id', image.id);
+  const { error, data } = await supabase.from('building_images').delete().eq('id', image.id).select('id');
   if (error) throw normalizeError(error, 'suppression de la photo de bâtiment');
+  // Une politique RLS qui refuse la suppression ne renvoie PAS d'erreur : elle supprime 0 ligne.
+  // Dans ce cas on ne touche surtout pas au fichier (sinon la photo resterait en base sans image).
+  if (!data || data.length === 0) {
+    throw new ApiError('Suppression refusée : droits insuffisants ou photo déjà supprimée.', 'FORBIDDEN');
+  }
   // Supprime aussi le fichier réel dans Storage — pas seulement la ligne
   // en base — pour ne pas laisser de fichiers orphelins facturés.
-  await supabase.storage.from(BUILDING_IMAGES_BUCKET).remove([image.storage_path]);
+  await removeStorageFile(BUILDING_IMAGES_BUCKET, image.storage_path);
   // Si l'image supprimée était la principale, promeut la plus ancienne
   // image restante pour qu'un bâtiment avec des photos n'en affiche
   // jamais aucune par accident.
@@ -833,7 +852,7 @@ export async function uploadLocationImage(
   file = await prepareUpload(file);
 
   const existing = await getLocationImages(locationId);
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const extension = storageExtensionFor(file);
   const storagePath = `${locationId}/${crypto.randomUUID()}.${extension}`;
 
   const { error: uploadError } = await supabase.storage
@@ -891,11 +910,16 @@ export async function reorderLocationImages(images: LocationImage[]): Promise<vo
 }
 
 export async function deleteLocationImage(image: LocationImage): Promise<void> {
-  const { error } = await supabase.from('location_images').delete().eq('id', image.id);
+  const { error, data } = await supabase.from('location_images').delete().eq('id', image.id).select('id');
   if (error) throw normalizeError(error, 'suppression de la photo de lieu');
+  // Une politique RLS qui refuse la suppression ne renvoie PAS d'erreur : elle supprime 0 ligne.
+  // Dans ce cas on ne touche surtout pas au fichier (sinon la photo resterait en base sans image).
+  if (!data || data.length === 0) {
+    throw new ApiError('Suppression refusée : droits insuffisants ou photo déjà supprimée.', 'FORBIDDEN');
+  }
   // Supprime aussi le fichier réel dans Storage — pas seulement la ligne
   // en base — pour ne pas laisser de fichiers orphelins facturés.
-  await supabase.storage.from(LOCATION_IMAGES_BUCKET).remove([image.storage_path]);
+  await removeStorageFile(LOCATION_IMAGES_BUCKET, image.storage_path);
   // Si l'image supprimée était la principale, promeut la plus ancienne
   // image restante pour qu'un lieu avec des photos n'en affiche jamais
   // aucune par accident.
@@ -971,7 +995,7 @@ export async function replaceImageFile(kind: 'building' | 'location', image: Bui
   const table = kind === 'building' ? 'building_images' : 'location_images';
   const parentId = kind === 'building' ? (image as BuildingImage).building_id : (image as LocationImage).location_id;
   const prepared = await prepareUpload(file);
-  const ext = prepared.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const ext = storageExtensionFor(prepared);
   const path = `${parentId}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage.from(bucket).upload(path, prepared, { cacheControl: '3600', upsert: false, contentType: prepared.type });
   if (upErr) throw new ApiError(`Échec de l'envoi de l'image : ${upErr.message}`, 'STORAGE_UPLOAD_FAILED', upErr);
@@ -981,7 +1005,7 @@ export async function replaceImageFile(kind: 'building' | 'location', image: Bui
     await supabase.storage.from(bucket).remove([path]);
     throw error ? governanceError(error, 'remplacement de la photo') : new ApiError('Remplacement refusé : droits insuffisants.', 'FORBIDDEN');
   }
-  await supabase.storage.from(bucket).remove([image.storage_path]);
+  await removeStorageFile(bucket, image.storage_path);
 }
 
 export interface AuditEntry {

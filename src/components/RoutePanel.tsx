@@ -8,6 +8,7 @@ import {
   Loader2,
   Navigation,
   Pencil,
+  RefreshCw,
   Route as RouteIcon,
   Waypoints,
   X,
@@ -16,6 +17,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { CampusLocation } from '@/lib/types';
 import type { RouteResult } from '@/lib/nav';
 import { formatDistance } from '@/lib/nav';
+import type { RouteFailureView } from '@/lib/route-failure';
 
 /**
  * ÉTAPE 12 : le panneau gère maintenant explicitement trois états —
@@ -38,6 +40,8 @@ export function RoutePanel({
   onClose,
   loading = false,
   error = null,
+  errorView = null,
+  onRetry,
   onUseMyLocation,
   onStart,
   onRecenter,
@@ -62,6 +66,10 @@ export function RoutePanel({
    * réseau piéton, aucune route trouvée, destination inaccessible…) — ce
    * composant ne devine jamais la cause, il l'affiche telle quelle. */
   error?: string | null;
+  /** Nature de l'échec (titre, indication, relance possible). Facultatif : sans lui, le message seul est affiché comme avant. */
+  errorView?: RouteFailureView | null;
+  /** « Réessayer » — affiché seulement si l'échec est de nature à pouvoir réussir (réseau, service). */
+  onRetry?: () => void;
   /** Bouton "Ma position" — masqué si non fourni. */
   onUseMyLocation?: () => void;
   /** Bouton "Démarrer" — masqué si non fourni. */
@@ -144,10 +152,27 @@ export function RoutePanel({
         <div
           role="alert"
           aria-live="assertive"
-          className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-sm font-medium text-red-600"
+          data-route-failure={errorView?.category ?? 'generic'}
+          className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-700"
         >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              {errorView && <p className="font-semibold">{errorView.title}</p>}
+              <p className={`break-words ${errorView ? 'mt-0.5' : 'font-medium'}`}>{error}</p>
+              {errorView && <p className="mt-1 text-xs text-red-600/90">{errorView.hint}</p>}
+            </div>
+          </div>
+          {errorView?.retryable && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Réessayer
+            </button>
+          )}
         </div>
       )}
 
@@ -160,10 +185,10 @@ export function RoutePanel({
       )}
 
       {/* ---- État initial : pas encore de route, on demande le départ ---- */}
-      {!loading && !error && !route && (
+      {!loading && !route && (
         <div className="mt-4 space-y-3">
           <p className="text-sm font-semibold text-hec-950">
-            Comment aller à {destination.name} ?
+            {error ? 'Essayer un autre départ' : `Comment aller à ${destination.name} ?`}
           </p>
 
           {onUseMyLocation && (

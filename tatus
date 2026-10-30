@@ -1,26 +1,211 @@
-warning: in the working copy of '.env.example', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'public/favicon.svg', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/components/AppShell.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/GOUVERNANCE_DONNEES.md', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/components/CampusMap.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/components/ExternalPOIDetail.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/HeroSlideshow.tsx', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/components/LegalLayout.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/components/LocationSearch.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/components/PublicNavbar.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/LocationDetail.tsx', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/components/RoutePanel.tsx', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/components/ui.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/index.css', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/lib/map-config.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/lib/nav.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/lib/osm-poi.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/lib/poi-categories.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/lib/poi-icon-sprites.ts', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/AdminPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/AuthPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/DashboardPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/__tests__/csv-import.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/__tests__/governance-api.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/__tests__/routing-proxy-core.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/__tests__/walking-route-proxy.test.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/csv-import.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/image-compress.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/walking-route.ts', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/pages/LandingPage.tsx', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'src/pages/MapPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/ProfilePage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'src/pages/QRPage.tsx', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tailwind.config.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/supabase/functions/route-walking/core.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/supabase/functions/route-walking/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/supabase/migrations/20260903100000_seed_example_building_and_room.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/tests/10_permissions.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/tests/run_local.sh', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/README.md b/README.md[m
+[1mindex e69de29..880bde5 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -0,0 +1,4 @@[m
+[32m+[m
+[32m+[m[32m## Passe 4 (audit, corrections, tests réels)[m
+[32m+[m[32mLire d'abord [`RAPPORT_MAITRE_PASSE_4.md`](RAPPORT_MAITRE_PASSE_4.md), puis `docs/passe4/` (rapports, procédure de préproduction et de retour arrière, checklist téléphone, actions à votre charge).[m
+[32m+[m[32mAvec la CLI Supabase, utiliser `supabase --workdir supabase …` (voir [`docs/SUPABASE_CLI.md`](docs/SUPABASE_CLI.md)).[m
+[1mdiff --git a/docs/GOUVERNANCE_DONNEES.md b/docs/GOUVERNANCE_DONNEES.md[m
+[1mindex 348f2da..96bdb7e 100644[m
+[1m--- a/docs/GOUVERNANCE_DONNEES.md[m
+[1m+++ b/docs/GOUVERNANCE_DONNEES.md[m
+[36m@@ -1,10 +1,13 @@[m
+ # Gouvernance des données institutionnelles (passe 3)[m
+ [m
+ ## 1. Constats de l'audit (base reconstruite et testée sur PostgreSQL 16 local avec simulation minimale de Supabase)[m
+[31m-1. **Toutes les migrations s'appliquent dans l'ordre** sur une base vierge, **sauf** `20260903100000_seed_example_building_and_room.sql` :[m
+[31m-   elle **échoue si aucun campus n'existe** (« Aucun campus trouvé ») et bloquerait `supabase db push` sur une base neuve. Elle insère aussi des[m
+[31m-   **données de démonstration** (un bâtiment « Bâtiment Informatique », une entrée, une salle) dans la chaîne de migrations. Historique non réécrit :[m
+[31m-   pour une base neuve, créer le campus avant, ou retirer cette migration de la chaîne de *votre* déploiement.[m
+[32m+[m[32m1. **Toutes les migrations s'appliquent dans l'ordre** sur une base vierge. *(Passe 4 : constat initial corrigé.)* La migration[m
+[32m+[m[32m   `20260903100000_seed_example_building_and_room.sql` échouait sans campus et insérait un bâtiment de démonstration dans toute base possédant[m
+[32m+[m[32m   un campus. Elle est désormais **inactive par défaut** : sans activation explicite elle n'insère rien et ne bloque plus la chaîne (testé : base neuve[m
+[32m+[m[32m   sans campus, avec campus, avec données, déjà migrée — `supabase/tests/20_scenarios.sh`). Le fichier est conservé pour l'historique.[m
+[32m+[m[32m   Pour insérer volontairement l'exemple (base de **démonstration** uniquement) : `SET hec.allow_demo_seed = 'on';` puis le contenu du fichier, dans la même[m
+[32m+[m[32m   exécution. Les lignes sont marquées `data_source = 'seed_demo'` et ne sont jamais validées automatiquement. Une base où l'ancienne version a déjà été[m
+[32m+[m[32m   appliquée n'est pas modifiée : son bâtiment de démonstration reste identifié « seed_demo » (à archiver ou supprimer par un administrateur).[m
+ 2. **Lignes archivées lisibles publiquement** : les policies de lecture étaient `USING (true)` ; seul le client filtrait. Corrigé par la nouvelle migration (RLS).[m
+ 3. **Aucun contrôle de validation côté serveur** : tout gestionnaire pouvait modifier n'importe quelle donnée. Corrigé (triggers de garde).[m
+ 4. **Aucun journal d'audit.** Ajouté.[m
+[1mdiff --git a/src/components/CampusMap.tsx b/src/components/CampusMap.tsx[m
+[1mindex e6d93b6..c229b34 100644[m
+[1m--- a/src/components/CampusMap.tsx[m
+[1m+++ b/src/components/CampusMap.tsx[m
+[36m@@ -73,7 +73,8 @@[m [minterface CampusMapProps {[m
+    */[m
+   onStyleModeRejected?: (appliedMode: MapStyleMode, message: string) => void;[m
+   /** Expose le déclenchement du recentrage GPS natif (bouton "Ma position" de MapPage). */[m
+[31m-  onGeolocateControlReady?: (trigger: () => void) => void;[m
+[32m+[m[32m  /** `trigger()` renvoie false si le contrôle natif n'a pas fini son initialisation asynchrone : l'appelant doit alors utiliser son repli. */[m
+[32m+[m[32m  onGeolocateControlReady?: (trigger: () => boolean) => void;[m
+ }[m
+ [m
+ /** Échappe les données texte avant de les insérer dans du HTML de marqueur[m
+[36m@@ -700,9 +701,11 @@[m [mexport function CampusMap({[m
+           zoom: focusZoom(map.getZoom(), map.getMaxZoom()),[m
+           duration: 600,[m
+         });[m
+[31m-        return;[m
+[32m+[m[32m        return true;[m
+       }[m
+[31m-      geolocate.trigger();[m
+[32m+[m[32m      // MapLibre 4.x : trigger() ne fait RIEN (renvoie false) tant que checkGeolocationSupport() n'a pas[m
+[32m+[m[32m      // abouti. Un lien profond ?nav= au démarrage à froid peut arriver avant : on le signale à l'appelant.[m
+[32m+[m[32m      return geolocate.trigger() !== false;[m
+     });[m
+     geolocate.on('geolocate', (e: GeolocationPosition) => {[m
+       // toGeoFix valide lat/lng/accuracy (aucun NaN/null) et ne fabrique[m
+[1mdiff --git a/src/components/HeroSlideshow.tsx b/src/components/HeroSlideshow.tsx[m
+[1mindex 4712b1a..c7aee38 100644[m
+[1m--- a/src/components/HeroSlideshow.tsx[m
+[1m+++ b/src/components/HeroSlideshow.tsx[m
+[36m@@ -188,7 +188,7 @@[m [mexport function HeroSlideshow({ children }: { children: ReactNode }) {[m
+               <button[m
+                 onClick={() => manual(active - 1)}[m
+                 aria-label="Photo précédente"[m
+[31m-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+[32m+[m[32m                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+               >[m
+                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />[m
+               </button>[m
+[36m@@ -196,14 +196,14 @@[m [mexport function HeroSlideshow({ children }: { children: ReactNode }) {[m
+                 onClick={() => setUserPaused((v) => !v)}[m
+                 aria-label={userPaused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}[m
+                 aria-pressed={userPaused}[m
+[31m-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+[32m+[m[32m                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+               >[m
+                 {userPaused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}[m
+               </button>[m
+               <button[m
+                 onClick={() => manual(active + 1)}[m
+                 aria-label="Photo suivante"[m
+[31m-                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+[32m+[m[32m                className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/35 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"[m
+               >[m
+                 <ChevronRight className="h-5 w-5" aria-hidden="true" />[m
+               </button>[m
+[1mdiff --git a/src/components/LegalLayout.tsx b/src/components/LegalLayout.tsx[m
+[1mindex 32f9b9d..3f75f74 100644[m
+[1m--- a/src/components/LegalLayout.tsx[m
+[1m+++ b/src/components/LegalLayout.tsx[m
+[36m@@ -39,7 +39,7 @@[m [mexport function LegalLinks({ className = '', tone = 'light' }: { className?: str[m
+               <button[m
+                 type="button"[m
+                 onClick={() => go(path, query ? Object.fromEntries(new URLSearchParams(query)) : undefined)}[m
+[31m-                className={`rounded font-medium underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 ${[m
+[32m+[m[32m                className={`inline-flex min-h-[32px] items-center rounded font-medium underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 ${[m
+                   tone === 'dark'[m
+                     ? 'text-white/75 hover:text-gold-400 focus-visible:ring-gold-400'[m
+                     : 'text-slate-500 hover:text-hec-600 focus-visible:ring-hec-500'[m
+[1mdiff --git a/src/components/LocationDetail.tsx b/src/components/LocationDetail.tsx[m
+[1mindex 921ee07..ad2e1b6 100644[m
+[1m--- a/src/components/LocationDetail.tsx[m
+[1m+++ b/src/components/LocationDetail.tsx[m
+[36m@@ -145,7 +145,7 @@[m [mfunction LocationGallery({ location }: { location: CampusLocation }) {[m
+             onClick={() => goTo(index - 1)}[m
+             disabled={index === 0}[m
+             aria-label="Photo précédente"[m
+[31m-            className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"[m
+[32m+[m[32m            className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white transition-opacity disabled:opacity-0"[m
+           >[m
+             <ChevronLeft className="h-4 w-4" />[m
+           </button>[m
+[36m@@ -153,7 +153,7 @@[m [mfunction LocationGallery({ location }: { location: CampusLocation }) {[m
+             onClick={() => goTo(index + 1)}[m
+             disabled={index === images.length - 1}[m
+             aria-label="Photo suivante"[m
+[31m-            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-opacity disabled:opacity-0"[m
+[32m+[m[32m            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white transition-opacity disabled:opacity-0"[m
+           >[m
+             <ChevronRight className="h-4 w-4" />[m
+           </button>[m
+[36m@@ -169,7 +169,7 @@[m [mfunction LocationGallery({ location }: { location: CampusLocation }) {[m
+               />[m
+             ))}[m
+           </div>[m
+[31m-          <span className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">[m
+[32m+[m[32m          <span className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-medium text-white">[m
+             {index + 1}/{images.length}[m
+           </span>[m
+         </>[m
+[1mdiff --git a/src/components/RoutePanel.tsx b/src/components/RoutePanel.tsx[m
+[1mindex d1897b2..239f7e7 100644[m
+[1m--- a/src/components/RoutePanel.tsx[m
+[1m+++ b/src/components/RoutePanel.tsx[m
+[36m@@ -8,6 +8,7 @@[m [mimport {[m
+   Loader2,[m
+   Navigation,[m
+   Pencil,[m
+[32m+[m[32m  RefreshCw,[m
+   Route as RouteIcon,[m
+   Waypoints,[m
+   X,[m
+[36m@@ -16,6 +17,7 @@[m [mimport { useEffect, useState, type ReactNode } from 'react';[m
+ import type { CampusLocation } from '@/lib/types';[m
+ import type { RouteResult } from '@/lib/nav';[m
+ import { formatDistance } from '@/lib/nav';[m
+[32m+[m[32mimport type { RouteFailureView } from '@/lib/route-failure';[m
+ [m
+ /**[m
+  * ÉTAPE 12 : le panneau gère maintenant explicitement trois états —[m
+[36m@@ -38,6 +40,8 @@[m [mexport function RoutePanel({[m
+   onClose,[m
+   loading = false,[m
+   error = null,[m
+[32m+[m[32m  errorView = null,[m
+[32m+[m[32m  onRetry,[m
+   onUseMyLocation,[m
+   onStart,[m
+   onRecenter,[m
+[36m@@ -62,6 +66,10 @@[m [mexport function RoutePanel({[m
+    * réseau piéton, aucune route trouvée, destination inaccessible…) — ce[m
+    * composant ne devine jamais la cause, il l'affiche telle quelle. */[m
+   error?: string | null;[m
+[32m+[m[32m  /** Nature de l'échec (titre, indication, relance possible). Facultatif : sans lui, le message seul est affiché comme avant. */[m
+[32m+[m[32m  errorView?: RouteFailureView | null;[m
+[32m+[m[32m  /** « Réessayer » — affiché seulement si l'échec est de nature à pouvoir réussir (réseau, service). */[m
+[32m+[m[32m  onRetry?: () => void;[m
+   /** Bouton "Ma position" — masqué si non fourni. */[m
+   onUseMyLocation?: () => void;[m
+   /** Bouton "Démarrer" — masqué si non fourni. */[m
+[36m@@ -144,10 +152,27 @@[m [mexport function RoutePanel({[m
+         <div[m
+           role="alert"[m
+           aria-live="assertive"[m
+[31m-          className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-sm font-medium text-red-600"[m
+[32m+[m[32m          data-route-failure={errorView?.category ?? 'generic'}[m
+[32m+[m[32m          className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-700"[m
+         >[m
+[31m-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />[m
+[31m-          <span>{error}</span>[m
+[32m+[m[32m          <div className="flex items-start gap-2">[m
+[32m+[m[32m            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />[m
+[32m+[m[32m            <div className="min-w-0">[m
+[32m+[m[32m              {errorView && <p className="font-semibold">{errorView.title}</p>}[m
+[32m+[m[32m              <p c

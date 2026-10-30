@@ -5,7 +5,10 @@ import {
   SlidingWindowLimiter,
   buildOrsBody,
   classifyOrsFailure,
+  clientKey,
   corsOriginFor,
+  MAX_BODY_BYTES,
+  readBoundedJson,
   parseBbox,
   validateOrsSuccess,
   validateRequest,
@@ -150,5 +153,50 @@ describe('proxy — CORS et secrets', () => {
   it('le client navigateur ne référence jamais ORS_API_KEY', () => {
     const client = readFileSync('src/lib/walking-route.ts', 'utf8');
     expect(client).not.toContain('ORS_API_KEY');
+  });
+});
+
+describe('proxy — identifiant client et corps borné (passe 4)', () => {
+  const h = (o: Record<string, string>) => ({ get: (n: string) => o[n.toLowerCase()] ?? null });
+  it('préfère cf-connecting-ip (non falsifiable) à x-forwarded-for', () => {
+    expect(clientKey(h({ 'cf-connecting-ip': '41.0.0.1', 'x-forwarded-for': '6.6.6.6, 41.0.0.1' }))).toBe('41.0.0.1');
+  });
+  it('retombe sur x-real-ip puis x-forwarded-for, puis "unknown"', () => {
+    expect(clientKey(h({ 'x-real-ip': '1.2.3.4', 'x-forwarded-for': '9.9.9.9' }))).toBe('1.2.3.4');
+    expect(clientKey(h({ 'x-forwarded-for': '9.9.9.9, 8.8.8.8' }))).toBe('9.9.9.9');
+    expect(clientKey(h({}))).toBe('unknown');
+  });
+  it('borne la longueur de la clé (pas de croissance mémoire par en-tête géant)', () => {
+    expect(clientKey(h({ 'cf-connecting-ip': 'a'.repeat(5000) })).length).toBe(64);
+  });
+  const req = (text: string, headers: Record<string, string> = {}) => ({ headers: h(headers), text: async () => text });
+  it('accepte un corps JSON normal', async () => {
+    const r = await readBoundedJson(req('{"from":[15.3,-4.32],"to":[15.31,-4.33]}'));
+    expect(r).toEqual({ ok: true, body: { from: [15.3, -4.32], to: [15.31, -4.33] } });
+  });
+  it('refuse un corps trop gros annoncé par content-length (sans le lire)', async () => {
+    let read = false;
+    const r = await readBoundedJson({ headers: h({ 'content-length': String(MAX_BODY_BYTES + 1) }), text: async () => { read = true; return '{}'; } });
+    expect(r).toEqual({ ok: false, kind: 'too_large' });
+    expect(read).toBe(false);
+  });
+  it('refuse un corps trop gros sans content-length fiable', async () => {
+    const r = await readBoundedJson(req('{"x":"' + 'a'.repeat(MAX_BODY_BYTES) + '"}'));
+    expect(r).toEqual({ ok: false, kind: 'too_large' });
+  });
+  it('compte les OCTETS (UTF-8) et non les caractères', async () => {
+    const r = await readBoundedJson(req('{"x":"' + 'é'.repeat(MAX_BODY_BYTES / 2) + '"}'));
+    expect(r).toEqual({ ok: false, kind: 'too_large' });
+  });
+  it('distingue JSON illisible et lecture impossible', async () => {
+    expect(await readBoundedJson(req('{pas du json'))).toEqual({ ok: false, kind: 'unreadable' });
+    expect(await readBoundedJson({ headers: h({}), text: async () => { throw new Error('boom'); } })).toEqual({ ok: false, kind: 'unreadable' });
+  });
+  it('index.ts utilise clientKey et readBoundedJson (pas de x-forwarded-for en direct)', () => {
+    const src = readFileSync('supabase/supabase/functions/route-walking/index.ts', 'utf8');
+    expect(src).toMatch(/clientKey\(req\.headers\)/);
+    expect(src).toMatch(/readBoundedJson\(req\)/);
+    expect(src).not.toMatch(/req\.headers\.get\('x-forwarded-for'\)/);
+    expect(src).not.toMatch(/req\.json\(\)/);
   });
 });

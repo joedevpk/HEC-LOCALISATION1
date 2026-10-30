@@ -12,6 +12,26 @@
 
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 /** Taille maximale d'une image ENVOYÉE (après compression). */
+const EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+};
+
+/**
+ * Extension de stockage d'une image déjà validée. Elle est déduite du TYPE MIME, pas du nom :
+ * un fichier « photo », « IMG.jfif » ou « scan.JPE » (téléphone, Windows) serait sinon envoyé avec une
+ * extension refusée par la règle Storage (jpg/jpeg/png/webp/avif) et échouerait avec une erreur obscure
+ * « violates row-level security policy ». Repli sur l'extension du nom si elle est autorisée, sinon « jpg ».
+ */
+export function storageExtensionFor(file: { type: string; name: string }): string {
+  const byMime = EXTENSION_BY_MIME[file.type];
+  if (byMime) return byMime;
+  const fromName = (file.name.split('.').pop() ?? '').toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'webp', 'avif'].includes(fromName) ? fromName : 'jpg';
+}
+
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Taille maximale d'un avatar (aucun envoi d'avatar n'existe encore :
  * constante prévue pour le jour où la fonctionnalité sera ajoutée). */

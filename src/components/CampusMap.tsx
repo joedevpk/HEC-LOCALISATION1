@@ -73,7 +73,8 @@ interface CampusMapProps {
    */
   onStyleModeRejected?: (appliedMode: MapStyleMode, message: string) => void;
   /** Expose le déclenchement du recentrage GPS natif (bouton "Ma position" de MapPage). */
-  onGeolocateControlReady?: (trigger: () => void) => void;
+  /** `trigger()` renvoie false si le contrôle natif n'a pas fini son initialisation asynchrone : l'appelant doit alors utiliser son repli. */
+  onGeolocateControlReady?: (trigger: () => boolean) => void;
 }
 
 /** Échappe les données texte avant de les insérer dans du HTML de marqueur
@@ -700,9 +701,11 @@ export function CampusMap({
           zoom: focusZoom(map.getZoom(), map.getMaxZoom()),
           duration: 600,
         });
-        return;
+        return true;
       }
-      geolocate.trigger();
+      // MapLibre 4.x : trigger() ne fait RIEN (renvoie false) tant que checkGeolocationSupport() n'a pas
+      // abouti. Un lien profond ?nav= au démarrage à froid peut arriver avant : on le signale à l'appelant.
+      return geolocate.trigger() !== false;
     });
     geolocate.on('geolocate', (e: GeolocationPosition) => {
       // toGeoFix valide lat/lng/accuracy (aucun NaN/null) et ne fabrique

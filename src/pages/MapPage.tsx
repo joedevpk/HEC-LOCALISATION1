@@ -42,11 +42,13 @@ import { usePlaceSearch } from '@/lib/use-place-search';
 import type { PlaceResult } from '@/lib/geocoding';
 import {
   WalkingRouteError,
+  type WalkingRouteErrorKind,
   fetchWalkingRoute,
   shouldKeepExternalRoute,
   isWalkingRouterConfigured,
   resolveWalkingRouter,
 } from '@/lib/walking-route';
+import { describeRouteFailure } from '@/lib/route-failure';
 import {
   decideOnFailure,
   decideOnRecompute,
@@ -229,6 +231,24 @@ function routeErrorMessage(err: RouteError, externalNote?: string | null): strin
     : msg;
 }
 
+/** Nature de l'échec affichée dans le panneau (voir lib/route-failure). */
+function routeFailureKind(err: RouteError, externalKind: WalkingRouteErrorKind | null, externalNote: string | null) {
+  if (externalNote) return externalKind ?? undefined;
+  switch (err.code) {
+    case 'ROUTE_NETWORK_MISSING':
+    case 'ROUTE_NETWORK_UNREACHABLE':
+      // Service externe non activé : c'est une question de configuration ; sinon le réseau interne est incomplet.
+      return WALKING_ROUTER_ON ? ('campus_network' as const) : ('not_configured' as const);
+    case 'ROUTE_NOT_FOUND':
+      return 'no_route' as const;
+    case 'INVALID_ORIGIN':
+    case 'INVALID_DESTINATION':
+      return 'invalid_points' as const;
+    default:
+      return undefined;
+  }
+}
+
 function campusRouteErrorMessage(err: RouteError): string {
   const asTheCrowFlies =
     typeof err.straightLineDistanceMeters === 'number'
@@ -353,7 +373,7 @@ export function MapPage() {
   // Le bouton "Ma position" de la page l'utilise en priorité pour éviter de
   // faire tourner deux systèmes GPS en parallèle (celui de MapLibre et
   // celui de lib/geolocation) — voir le commentaire dans CampusMap.tsx.
-  const geolocateTriggerRef = useRef<(() => void) | null>(null);
+  const geolocateTriggerRef = useRef<(() => boolean) | null>(null);
   const poiAbortRef = useRef<AbortController | null>(null);
   const poiDebounceRef = useRef<number | null>(null);
 
@@ -519,6 +539,10 @@ export function MapPage() {
   // --- Itinéraire piéton hors campus (service externe, voir lib/walking-route) ---
   const [externalRouting, setExternalRouting] = useState(false);
   const [externalRouteNote, setExternalRouteNote] = useState<string | null>(null);
+  /** Nature de l'échec du service externe (réseau, indisponible, configuration…) — n'a de sens que si externalRouteNote est défini. */
+  const [externalRouteKind, setExternalRouteKind] = useState<WalkingRouteErrorKind | null>(null);
+  /** Incrémenté par « Réessayer » : relance le calcul avec les mêmes points, sans attendre un changement de départ. */
+  const [routeRetryNonce, setRouteRetryNonce] = useState(0);
   /** Destination/départ pour lesquels `routeResult` a été calculé (un tracé n'est jamais affiché pour une autre destination). */
   const [routeTag, setRouteTag] = useState<RouteTag | null>(null);
   const [staleRouteNote, setStaleRouteNote] = useState<string | null>(null);
@@ -661,8 +685,9 @@ export function MapPage() {
         setGeoMessage(null);
       }
       stopGeolocationWatch();
-      if (geolocateTriggerRef.current) {
-        geolocateTriggerRef.current();
+      // Le contrôle natif peut ne pas être prêt (lien profond au démarrage à froid) : trigger() renvoie alors
+      // false et on tombe sur le suivi de repli ci-dessous, au lieu de rester bloqué sur « Recherche… ».
+      if (geolocateTriggerRef.current && geolocateTriggerRef.current()) {
         return;
       }
       const stop = startLocationWatch(applyGeoFix, (err) => {
@@ -892,6 +917,7 @@ export function MapPage() {
           setRouteTag(null);
           setRouteError(outcome.error);
           setExternalRouteNote(reason);
+          setExternalRouteKind(err instanceof WalkingRouteError ? err.kind : null);
         })
         .finally(() => {
           if (pendingExternalRef.current?.controller === controller) pendingExternalRef.current = null;
@@ -901,7 +927,12 @@ export function MapPage() {
     pendingExternalRef.current = { destId: selected.id, origin: from, controller, timer };
     // Pas de cleanup qui annule : un re-rendu dû au bruit GPS ne doit pas tuer le calcul en cours.
     // L'annulation se fait explicitement (changement de destination/mode, démontage).
-  }, [panelMode, origin, selected, accessible, routeNodes, routeSegments, routingLoading, cancelPendingExternal]);
+  }, [panelMode, origin, selected, accessible, routeNodes, routeSegments, routingLoading, cancelPendingExternal, routeRetryNonce]);
+
+  const handleRetryRoute = useCallback(() => {
+    lastExternalRouteRef.current = null; // force un vrai nouveau calcul (shouldKeepExternalRoute ne doit pas l'ignorer)
+    setRouteRetryNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => cancelPendingExternal, [cancelPendingExternal]);
 
@@ -1278,6 +1309,8 @@ export function MapPage() {
                 route={displayRoute}
                 loading={externalRouting && !!displayRoute}
                 error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
+                errorView={routeError ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote)) : null}
+                onRetry={handleRetryRoute}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}
@@ -1705,6 +1738,8 @@ export function MapPage() {
                 route={displayRoute}
                 loading={externalRouting && !!displayRoute}
                 error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
+                errorView={routeError ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote)) : null}
+                onRetry={handleRetryRoute}
                 accessible={accessible}
                 origins={originChoices}
                 onChangeOrigin={handleChangeOrigin}

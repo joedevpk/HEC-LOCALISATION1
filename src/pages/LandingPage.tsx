@@ -219,7 +219,7 @@ export function LandingPage() {
       {/* ============ HERO — slideshow des 7 photos HEC ============ */}
       <HeroSlideshow>
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/30 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-white">
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             HEC Localisation
           </div>
@@ -262,7 +262,7 @@ export function LandingPage() {
           {heroStats.length > 0 && (
             <dl className="mt-6 flex flex-wrap gap-2.5">
               {heroStats.map((st) => (
-                <div key={st.label} className="flex items-baseline gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 backdrop-blur">
+                <div key={st.label} className="flex items-baseline gap-2 rounded-full border border-white/20 bg-black/30 px-3.5 py-1.5">
                   <dd className="font-display text-base font-extrabold text-white">{st.value}</dd>
                   <dt className="text-xs font-medium text-white/75">{st.label}</dt>
                 </div>
@@ -599,7 +599,7 @@ export function LandingPage() {
           </div>
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-white/70">
             <MessagesSquare className="h-4 w-4" aria-hidden="true" />
-            <button onClick={() => go('/help')} className="underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            <button onClick={() => go('/help')} className="inline-flex min-h-[44px] items-center underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
               Besoin d'aide ? Ouvrir le centre d'aide
             </button>
           </div>

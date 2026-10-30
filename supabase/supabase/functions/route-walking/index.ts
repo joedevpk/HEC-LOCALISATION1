@@ -8,8 +8,10 @@ import {
   SlidingWindowLimiter,
   buildOrsBody,
   classifyOrsFailure,
+  clientKey,
   corsOriginFor,
   parseBbox,
+  readBoundedJson,
   validateOrsSuccess,
   validateRequest,
   type ProxyFailure,
@@ -65,17 +67,17 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return failure({ status: 400, kind: 'invalid_request', message: 'Corps JSON illisible.' }, cors);
+  const parsed = await readBoundedJson(req);
+  if (!parsed.ok) {
+    return parsed.kind === 'too_large'
+      ? failure({ status: 413, kind: 'invalid_request', message: 'Requête trop volumineuse.' }, cors)
+      : failure({ status: 400, kind: 'invalid_request', message: 'Corps JSON illisible.' }, cors);
   }
+  const body: unknown = parsed.body;
   const v = validateRequest(body, parseBbox(Deno.env.get('ROUTING_ALLOWED_BBOX')));
   if (!v.ok) return failure(v.failure, cors);
 
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
-  const gate = limiter.check(ip, Date.now());
+  const gate = limiter.check(clientKey(req.headers), Date.now());
   if (!gate.allowed) {
     return failure(
       {

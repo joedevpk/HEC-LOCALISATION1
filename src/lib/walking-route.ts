@@ -28,6 +28,8 @@ export type WalkingRouteErrorKind =
   | 'timeout'
   | 'abort'
   | 'network_error'
+  /** Le service d'itinéraire (ou son fournisseur) répond mais est indisponible : ≠ coupure réseau de l'utilisateur. */
+  | 'service_unavailable'
   /** Requête refusée comme mal formée par le moteur (≠ « aucun chemin ») : erreur de configuration/intégration. */
   | 'bad_request'
   /** Départ/arrivée hors de la zone couverte par le service. */
@@ -323,7 +325,7 @@ export function classifyProxyFailure(status: number, body: unknown): WalkingRout
     rate_limited: 'rate_limited',
     not_configured: 'not_configured',
     service_misconfigured: 'bad_request',
-    upstream_unavailable: 'network_error',
+    upstream_unavailable: 'service_unavailable',
     timeout: 'timeout',
     bad_request: 'bad_request',
   };
@@ -335,7 +337,7 @@ export function classifyProxyFailure(status: number, body: unknown): WalkingRout
   if (status === 404) {
     return new WalkingRouteError('Service d’itinéraire introuvable (fonction non déployée ?). Contactez un administrateur.', 'not_configured');
   }
-  return new WalkingRouteError(`Service d’itinéraire indisponible (${status}).`, 'network_error');
+  return new WalkingRouteError(`Service d’itinéraire indisponible (${status}).`, 'service_unavailable');
 }
 
 /** Corps d'erreur ORS : { error: { code, message } } (ou chaîne) ; OSRM : { code, message }. */

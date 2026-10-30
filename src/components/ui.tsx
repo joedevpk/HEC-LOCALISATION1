@@ -15,7 +15,7 @@ const variants: Record<Variant, string> = {
   dark: 'bg-hec-950 text-white hover:bg-hec-900 focus-visible:ring-hec-300',
   // Secondaire sur photo : verre dépoli blanc (hero, sections image).
   glass:
-    'border border-white/30 bg-white/10 text-white backdrop-blur hover:bg-white/20 focus-visible:ring-white/40',
+    'border border-white/30 bg-black/30 text-white hover:bg-black/45 focus-visible:ring-white/40',
   // Accent institutionnel (jaune du logo) : action phare sur fond bleu foncé.
   accent:
     'bg-gold-400 text-hec-950 hover:bg-gold-300 shadow-glass focus-visible:ring-gold-300',

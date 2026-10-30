@@ -73,7 +73,7 @@ describe('appel du proxy', () => {
     [422, { error: { kind: 'too_far', message: 'Trop long' } }, 'too_far'],
     [503, { error: { kind: 'not_configured', message: 'Non configuré' } }, 'not_configured'],
     [502, { error: { kind: 'service_misconfigured', message: 'Clé refusée' } }, 'bad_request'],
-    [503, { error: { kind: 'upstream_unavailable', message: 'Indisponible' } }, 'network_error'],
+    [503, { error: { kind: 'upstream_unavailable', message: 'Indisponible' } }, 'service_unavailable'],
     [504, { error: { kind: 'timeout', message: 'Délai' } }, 'timeout'],
   ])('HTTP %i du proxy → erreur explicite « %s »', async (status, b, kind) => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(res(b, status));

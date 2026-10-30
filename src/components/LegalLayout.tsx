@@ -39,7 +39,7 @@ export function LegalLinks({ className = '', tone = 'light' }: { className?: str
               <button
                 type="button"
                 onClick={() => go(path, query ? Object.fromEntries(new URLSearchParams(query)) : undefined)}
-                className={`rounded font-medium underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 ${
+                className={`inline-flex min-h-[32px] items-center rounded font-medium underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 ${
                   tone === 'dark'
                     ? 'text-white/75 hover:text-gold-400 focus-visible:ring-gold-400'
                     : 'text-slate-500 hover:text-hec-600 focus-visible:ring-hec-500'
