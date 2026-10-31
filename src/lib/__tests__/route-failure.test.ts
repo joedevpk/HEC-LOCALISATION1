@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeRouteFailure } from '../route-failure';
+import { CONFIGURATION_FAILURE_PUBLIC_MESSAGE, describeRouteFailure, userFacingRouteMessage } from '../route-failure';
 import { readFileSync } from 'node:fs';
 import type { WalkingRouteErrorKind } from '../walking-route';
 
@@ -62,5 +62,31 @@ describe('présentation des échecs d’itinéraire', () => {
   it('type inconnu ou absent : message générique, jamais de faux succès', () => {
     expect(describeRouteFailure(undefined).category).toBe('generic');
     expect(describeRouteFailure('abort' as WalkingRouteErrorKind).category).toBe('generic');
+  });
+
+  describe('message affiché selon le profil (visiteur / administrateur)', () => {
+    const TECH = 'Service d’itinéraire introuvable (fonction non déployée ?). Contactez un administrateur.';
+    it.each(['not_configured', 'forbidden', 'bad_request'] as const)('%s : le visiteur ne voit aucun jargon technique', (kind) => {
+      const msg = userFacingRouteMessage(describeRouteFailure(kind), TECH, false);
+      expect(msg).toBe(CONFIGURATION_FAILURE_PUBLIC_MESSAGE);
+      expect(msg).not.toMatch(/fonction|déploy|administrateur|jeton|origine/i);
+    });
+    it('l’administrateur garde le message technique exact et la piste de correction', () => {
+      const msg = userFacingRouteMessage(describeRouteFailure('not_configured'), TECH, true);
+      expect(msg).toContain(TECH);
+      expect(msg).toContain('docs/ROUTING_PROXY.md');
+    });
+    it('les autres échecs (réseau, indisponible, introuvable) ne sont jamais réécrits', () => {
+      for (const k of ['network_error', 'service_unavailable', 'no_route', 'campus_network'] as const) {
+        expect(userFacingRouteMessage(describeRouteFailure(k), 'texte déjà rédigé', false)).toBe('texte déjà rédigé');
+        expect(userFacingRouteMessage(describeRouteFailure(k), 'texte déjà rédigé', true)).toBe('texte déjà rédigé');
+      }
+    });
+    it('sans description d’échec, le message est inchangé', () => {
+      expect(userFacingRouteMessage(null, 'x', false)).toBe('x');
+    });
+    it('l’indication pour le visiteur propose une action concrète (départ dans le campus)', () => {
+      expect(describeRouteFailure('not_configured').hint).toMatch(/lieu du campus/i);
+    });
   });
 });

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Compass,
   Crosshair,
   Layers,
@@ -48,7 +49,7 @@ import {
   isWalkingRouterConfigured,
   resolveWalkingRouter,
 } from '@/lib/walking-route';
-import { describeRouteFailure } from '@/lib/route-failure';
+import { describeRouteFailure, userFacingRouteMessage } from '@/lib/route-failure';
 import {
   decideOnFailure,
   decideOnRecompute,
@@ -61,6 +62,7 @@ import {
   findRoute,
   distanceToPolylineMeters,
   haversine,
+  formatDistance,
   type RouteResult,
   type RouteError,
 } from '@/lib/nav';
@@ -83,6 +85,33 @@ import {
 import { GeoDiagnosticPanel } from '@/components/GeoDiagnosticPanel';
 
 type PanelMode = 'search' | 'detail' | 'route' | 'poi';
+
+/**
+ * État de la feuille basse mobile pendant un itinéraire. PUREMENT visuel :
+ * réduire ou masquer la feuille ne touche ni à `selected`, ni à `origin`, ni à
+ * `routeResult` — le tracé de la carte en dépend, jamais de ce qui est affiché.
+ * (Seule la croix « Fermer l'itinéraire » termine réellement l'itinéraire.)
+ */
+type SheetState = 'expanded' | 'collapsed' | 'hidden';
+
+// Destination de l'itinéraire en cours, gardée pour la session de l'onglet : quitter
+// l'onglet Carte démonte MapPage, et l'itinéraire doit être retrouvé au retour.
+const ACTIVE_ROUTE_KEY = 'hec:active-route-dest';
+function readSavedRouteDest(): string | null {
+  try {
+    return window.sessionStorage.getItem(ACTIVE_ROUTE_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveRouteDest(id: string | null) {
+  try {
+    if (id) window.sessionStorage.setItem(ACTIVE_ROUTE_KEY, id);
+    else window.sessionStorage.removeItem(ACTIVE_ROUTE_KEY);
+  } catch {
+    /* stockage indisponible (navigation privée…) : sans conséquence */
+  }
+}
 type GeoStatus = 'idle' | 'locating' | 'granted' | 'denied' | 'unavailable';
 
 const styleModeIcons: Record<MapStyleMode, React.ComponentType<{ className?: string }>> = {
@@ -303,6 +332,8 @@ export function MapPage() {
   // Réinitialisée à chaque fermeture du panneau ou changement de
   // destination — jamais reportée sur un nouveau trajet.
   const [navigationActive, setNavigationActive] = useState(false);
+  // Feuille basse mobile : déployée / réduite / masquée (voir SheetState).
+  const [sheetState, setSheetState] = useState<SheetState>('expanded');
   const [accessible, setAccessible] = useState(true);
   const [recent, setRecent] = useState<string[]>([]);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -746,6 +777,7 @@ export function MapPage() {
   // Sélectionne une destination "à consulter" (recherche, clic bâtiment,
   // clic POI HEC, deep-link ?loc=) : centre la carte + ouvre le détail.
   const selectDestination = useCallback((loc: CampusLocation) => {
+    saveRouteDest(null);
     setSelected(loc);
     setSelectedPoi(null);
     setPanelMode('detail');
@@ -763,6 +795,8 @@ export function MapPage() {
         return;
       }
       setLocationError(null);
+      // Seuls les lieux du campus sont restaurables (une destination OSM synthétique ne l'est pas).
+      saveRouteDest(locations.some((l) => l.id === destination.id) ? destination.id : null);
       setSelected(destination);
       setSelectedPoi(null);
       setPanelMode('route');
@@ -772,7 +806,7 @@ export function MapPage() {
       // deux fois et lancerait deux suivis GPS).
       if (!origin && geoStatus === 'idle') requestGeolocation();
     },
-    [origin, geoStatus, requestGeolocation],
+    [origin, geoStatus, requestGeolocation, locations],
   );
 
   // Deep-link: ?loc=<id> ouvre le détail; ?nav=<id> ouvre directement
@@ -794,6 +828,26 @@ export function MapPage() {
     // liste des lieux changent, pas à chaque changement d'état interne.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params, locations]);
+
+  // Retour sur l'onglet Carte : on retrouve l'itinéraire en cours (destination mémorisée pour la
+  // session ; le départ « Ma position » est relu par le GPS et le tracé recalculé). Un lien
+  // ?loc= / ?nav= explicite reste prioritaire, et rien n'est restauré une fois que l'utilisateur a
+  // déjà choisi quelque chose (ou fermé l'itinéraire : la mémoire est alors effacée).
+  // Volontairement idempotent (pas de drapeau « déjà exécuté ») : React StrictMode rejoue les effets
+  // après avoir exécuté les nettoyages, qui arrêtent le suivi GPS démarré par le premier passage.
+  useEffect(() => {
+    if (!locations.length || selected || panelMode !== 'search') return;
+    if (route.params.get('loc') || route.params.get('nav')) return;
+    const id = readSavedRouteDest();
+    const loc = id ? locations.find((l) => l.id === id) : undefined;
+    if (loc) selectRouteDestination(loc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locations]);
+
+  // La feuille mobile repart « déployée » à chaque nouvelle destination / nouveau mode.
+  useEffect(() => {
+    setSheetState('expanded');
+  }, [panelMode, selected?.id, selectedPoi?.id]);
 
   // Calcul externe en cours (voir l'effet ci-dessous) : conservé tant que la destination est la même.
   const pendingExternalRef = useRef<{
@@ -977,6 +1031,14 @@ export function MapPage() {
 
   // Tracé réellement affichable : uniquement s'il correspond à la destination courante.
   const displayRoute = routeForDestination(routeResult, routeTag, selected?.id);
+  // Présentation de l'échec : le détail technique n'est montré qu'aux administrateurs.
+  const routeErrorView = routeError
+    ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote))
+    : null;
+  const routeIsAdmin = isAdminRole(profile?.role) || import.meta.env.DEV;
+  // Réduire / masquer la feuille n'a de sens que lorsqu'un tracé réel est affiché.
+  const mobileRouteSheet = panelMode === 'route' && !!selected && !!origin && !!displayRoute && !routeError;
+  const mobileSheetMode: SheetState = mobileRouteSheet ? sheetState : 'expanded';
 
   const startRoute = useCallback(
     (destination: CampusLocation) => selectRouteDestination(destination),
@@ -994,6 +1056,7 @@ export function MapPage() {
   );
 
   const closePanel = useCallback(() => {
+    saveRouteDest(null);
     originSourceRef.current = null;
     lastOriginPointRef.current = null;
     setSelected(null);
@@ -1007,6 +1070,14 @@ export function MapPage() {
       go('/map');
     }
   }, [route.params, go]);
+
+  // « Démarrer » : lance la navigation (suivi hors-itinéraire existant) et, sur mobile, réduit la
+  // feuille pour rendre la carte à l'utilisateur. Le tracé n'est jamais modifié par ce geste.
+  const startNavigationMobile = useCallback(() => {
+    setNavigationActive(true);
+    setSheetState('collapsed');
+    if (geoStatus === 'granted') handleLocateClick();
+  }, [geoStatus, handleLocateClick]);
 
   if (loading) {
     return (
@@ -1308,8 +1379,8 @@ export function MapPage() {
                 destination={selected}
                 route={displayRoute}
                 loading={externalRouting && !!displayRoute}
-                error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
-                errorView={routeError ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote)) : null}
+                error={routeError ? userFacingRouteMessage(routeErrorView, routeErrorMessage(routeError, externalRouteNote), routeIsAdmin) : null}
+                errorView={routeErrorView}
                 onRetry={handleRetryRoute}
                 accessible={accessible}
                 origins={originChoices}
@@ -1320,8 +1391,11 @@ export function MapPage() {
                 onUseMyLocation={requestGeolocation}
                 originExtra={<OriginAddressSearch proximity={placeProximity} onConfirm={confirmAddressOrigin} />}
                 onStart={() => setNavigationActive(true)}
+                navigationActive={navigationActive}
+                onStop={() => setNavigationActive(false)}
                 onRecenter={handleLocateClick}
                 onChangeDestination={() => {
+                  saveRouteDest(null);
                   setPanelMode('search');
                   setSelected(null);
                   setNavigationActive(false);
@@ -1595,7 +1669,12 @@ export function MapPage() {
       {/* État de chargement / erreur des POI publics — discret, jamais bloquant
           (ÉTAPE 18 : jamais silencieux, jamais de faux lieu affiché à la place) */}
       {showExternalPois && (poiLoading || poiError || poiTruncated) && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-20 flex justify-center lg:bottom-6 lg:left-[416px] lg:right-auto lg:justify-start lg:pl-2">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-20 flex justify-center lg:bottom-6 lg:left-[416px] lg:right-auto lg:justify-start lg:pl-2 ${
+            // Feuille masquée : la pastille d'itinéraire occupe le bas de l'écran, la bannière passe au-dessus.
+            mobileSheetMode === 'hidden' ? 'bottom-[calc(4.75rem+env(safe-area-inset-bottom))]' : 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
+          }`}
+        >
           <div className="pointer-events-auto">
             {poiLoading && (
               <div className="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-slate-500 shadow-glass">
@@ -1698,11 +1777,96 @@ export function MapPage() {
         </div>
       )}
 
+      {/* Feuille masquée : l'itinéraire reste tracé sur la carte ; une pastille permet de la rouvrir. */}
+      {mobileRouteSheet && mobileSheetMode === 'hidden' && displayRoute && (
+        <button
+          type="button"
+          onClick={() => setSheetState('collapsed')}
+          aria-label="Afficher le panneau d'itinéraire"
+          data-route-pill
+          className="absolute bottom-3 left-3 right-[4.75rem] z-30 flex min-h-[48px] items-center gap-2 rounded-full border border-slate-200/70 bg-white/95 px-4 text-left shadow-panel focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100 lg:hidden"
+        >
+          <Navigation className="h-4 w-4 shrink-0 text-hec-500" />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-hec-950">
+            {formatDistance(displayRoute.distanceMeters)}
+            {typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''}
+          </span>
+          <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" />
+        </button>
+      )}
+
       {/* Bottom sheet mobile & tablette : détail / itinéraire / POI */}
       {panelMode !== 'search' && (selected || selectedPoi) && (
-        <div className="absolute inset-x-0 bottom-0 z-30 animate-slide-up rounded-t-3xl bg-white shadow-panel motion-reduce:animate-none lg:hidden">
-          <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-200" />
-          <div className="hec-sheet-body max-h-[58dvh] overflow-y-auto overscroll-contain px-5 pb-6 pt-3 md:mx-auto md:max-w-xl">
+        <div
+          data-sheet-state={mobileSheetMode}
+          className={`absolute inset-x-0 bottom-0 z-30 animate-slide-up rounded-t-3xl bg-white shadow-panel motion-reduce:animate-none lg:hidden ${
+            mobileSheetMode === 'hidden' ? 'hidden' : ''
+          }`}
+        >
+          {mobileRouteSheet ? (
+            <button
+              type="button"
+              onClick={() => setSheetState(mobileSheetMode === 'expanded' ? 'collapsed' : 'expanded')}
+              aria-label={mobileSheetMode === 'expanded' ? "Réduire le panneau d'itinéraire" : "Agrandir le panneau d'itinéraire"}
+              aria-expanded={mobileSheetMode === 'expanded'}
+              className="group mx-auto flex h-8 w-full items-center justify-center focus-visible:outline-none"
+            >
+              <span className="h-1.5 w-10 shrink-0 rounded-full bg-slate-200 group-focus-visible:bg-hec-400" />
+            </button>
+          ) : (
+            <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-slate-200" />
+          )}
+
+          {/* Résumé compact (feuille réduite) : distance / durée / étapes restent disponibles, le
+              détail complet (RoutePanel) reste MONTÉ juste en dessous, simplement replié. */}
+          {mobileRouteSheet && mobileSheetMode === 'collapsed' && displayRoute && selected && (
+            <div className="px-4 pb-3" data-route-summary>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-hec-950">{selected.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {formatDistance(displayRoute.distanceMeters)}
+                    {typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''}
+                    {navigationActive ? ' · navigation en cours' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSheetState('expanded')}
+                  aria-label="Afficher les étapes et le détail de l'itinéraire"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetState('hidden')}
+                  aria-label="Masquer le panneau (l'itinéraire reste sur la carte)"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={navigationActive ? () => setNavigationActive(false) : startNavigationMobile}
+                className={`mt-2 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 ${
+                  navigationActive
+                    ? 'border border-red-200 bg-red-50 text-red-700 focus-visible:ring-red-100'
+                    : 'bg-hec-950 text-white focus-visible:ring-hec-200'
+                }`}
+              >
+                <Navigation className="h-4 w-4" />
+                {navigationActive ? 'Arrêter la navigation' : 'Démarrer'}
+              </button>
+            </div>
+          )}
+
+          <div
+            className={`hec-sheet-body max-h-[58dvh] overflow-y-auto overscroll-contain px-5 pb-6 pt-3 md:mx-auto md:max-w-xl ${
+              mobileSheetMode === 'collapsed' ? 'hidden' : ''
+            }`}
+          >
             {panelMode === 'poi' && selectedPoi && (
               <ExternalPOIDetail
                 poi={selectedPoi}
@@ -1737,8 +1901,8 @@ export function MapPage() {
                 destination={selected}
                 route={displayRoute}
                 loading={externalRouting && !!displayRoute}
-                error={routeError ? routeErrorMessage(routeError, externalRouteNote) : null}
-                errorView={routeError ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote)) : null}
+                error={routeError ? userFacingRouteMessage(routeErrorView, routeErrorMessage(routeError, externalRouteNote), routeIsAdmin) : null}
+                errorView={routeErrorView}
                 onRetry={handleRetryRoute}
                 accessible={accessible}
                 origins={originChoices}
@@ -1748,9 +1912,12 @@ export function MapPage() {
                 onClose={closePanel}
                 onUseMyLocation={requestGeolocation}
                 originExtra={<OriginAddressSearch proximity={placeProximity} onConfirm={confirmAddressOrigin} />}
-                onStart={() => setNavigationActive(true)}
+                onStart={startNavigationMobile}
+                navigationActive={navigationActive}
+                onStop={() => setNavigationActive(false)}
                 onRecenter={handleLocateClick}
                 onChangeDestination={() => {
+                  saveRouteDest(null);
                   setPanelMode('search');
                   setSelected(null);
                   setNavigationActive(false);

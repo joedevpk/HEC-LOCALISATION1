@@ -47,6 +47,8 @@ export function RoutePanel({
   onRecenter,
   onChangeDestination,
   navigation = null,
+  navigationActive = false,
+  onStop,
   warning = null,
   originExtra = null,
 }: {
@@ -78,6 +80,10 @@ export function RoutePanel({
   onRecenter?: () => void;
   /** Bouton "Modifier" sur la destination — masqué si non fourni. */
   onChangeDestination?: () => void;
+  /** Navigation démarrée par l'utilisateur (bouton « Démarrer »). Le tracé reste affiché tel quel. */
+  navigationActive?: boolean;
+  /** « Arrêter » — remplace « Démarrer » tant que `navigationActive` est vrai. */
+  onStop?: () => void;
   /**
    * État réel de navigation active, fourni par l'appelant s'il en dispose
    * déjà (position courante suivie, étape en cours). Ne jamais simuler
@@ -393,15 +399,31 @@ export function RoutePanel({
             </p>
           )}
 
+          {navigationActive && (
+            <p role="status" className="mt-4 text-xs font-medium text-emerald-700">
+              Navigation en cours — le tracé reste affiché sur la carte.
+            </p>
+          )}
+
           {(onStart || onRecenter) && (
             <div className="mt-4 flex gap-2">
-              {onStart && (
+              {onStart && !(navigationActive && onStop) && (
                 <button
                   onClick={onStart}
                   className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-hec-950 px-3 py-3 text-sm font-semibold text-white hover:bg-hec-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-200"
                 >
                   <Navigation className="h-4 w-4" />
                   Démarrer
+                </button>
+              )}
+              {navigationActive && onStop && (
+                <button
+                  onClick={onStop}
+                  aria-pressed="true"
+                  className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm font-semibold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
+                >
+                  <X className="h-4 w-4" />
+                  Arrêter la navigation
                 </button>
               )}
               {onRecenter && (

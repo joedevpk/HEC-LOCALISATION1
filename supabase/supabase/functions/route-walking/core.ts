@@ -210,24 +210,12 @@ export class SlidingWindowLimiter {
   }
 }
 
-/** Origine de production toujours autorisée, même si le secret ALLOWED_ORIGINS est absent ou incomplet. */
-export const DEFAULT_ALLOWED_ORIGINS: readonly string[] = ['https://localisationhec.onrender.com'];
-
-/** Normalise une origine : espaces, slash final et casse (une origine navigateur n'a jamais de chemin). */
-export function normalizeOrigin(o: string): string {
-  return o.trim().replace(/\/+$/, '').toLowerCase();
-}
-
-/**
- * Origines autorisées (CORS) = origine de production par défaut + liste ALLOWED_ORIGINS (séparée par des
- * virgules). '*' n'est jamais accepté. Renvoie l'origine de la requête si elle est autorisée, sinon null.
- */
+/** Origines autorisées (CORS) : liste séparée par des virgules ; '*' interdit en production. */
 export function corsOriginFor(requestOrigin: string | null, allowedCsv: string | undefined): string | null {
-  if (!requestOrigin) return null;
-  const list = [...DEFAULT_ALLOWED_ORIGINS, ...(allowedCsv ?? '').split(',')]
-    .map(normalizeOrigin)
-    .filter((o) => o !== '' && o !== '*');
-  return list.includes(normalizeOrigin(requestOrigin)) ? requestOrigin : null;
+  const list = (allowedCsv ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return null;
+  if (requestOrigin && list.includes(requestOrigin)) return requestOrigin;
+  return null;
 }
 
 /** Taille maximale acceptée pour le corps de la requête (deux coordonnées tiennent en ~100 octets). */

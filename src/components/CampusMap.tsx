@@ -657,6 +657,15 @@ export function CampusMap({
     resizeObserver?.observe(containerRef.current);
     const onOrientation = () => window.setTimeout(() => map.resize(), 250);
     window.addEventListener('orientationchange', onOrientation);
+    // Retour sur l'onglet / la page (iOS bfcache, retour d'une autre application) : le canvas WebGL
+    // peut avoir été vidé ou mal dimensionné pendant l'absence — on le redimensionne et on le redessine.
+    const onBackVisible = () => {
+      if (document.visibilityState === 'hidden') return;
+      map.resize();
+      map.triggerRepaint();
+    };
+    document.addEventListener('visibilitychange', onBackVisible);
+    window.addEventListener('pageshow', onBackVisible);
     // Écouteur unique par instance de map (survit à setStyle, pas besoin
     // de le rattacher dans 'style.load') : voir attachMissingIconFallback.
     attachMissingIconFallback(map);
@@ -869,6 +878,8 @@ export function CampusMap({
       cancelAnimationFrame(resizeFrame);
       resizeObserver?.disconnect();
       window.removeEventListener('orientationchange', onOrientation);
+      document.removeEventListener('visibilitychange', onBackVisible);
+      window.removeEventListener('pageshow', onBackVisible);
       markersRef.current.forEach((m) => m.remove());
       dynamicRef.current.forEach((m) => m.remove());
       markersRef.current = [];

@@ -1,0 +1,518 @@
+[
+ {
+  "profile": "iphone13",
+  "test": "0. avant calcul : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "1-2. itinéraire calculé : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=12644px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "1 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "1 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "1 : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=596, haut nav=603)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "étapes affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "3-4. après « Masquer les étapes » : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=12644px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "5. étapes réaffichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "distance/durée toujours affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "5. étapes réaffichées : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=12644px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau réduit : résumé distance/durée visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau réduit : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=31956px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6 réduit : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6 réduit : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "6 réduit : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=596, haut nav=603)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau agrandi",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau agrandi : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=12644px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau masqué : pastille de réouverture visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. panneau MASQUÉ : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=31956px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6 masqué : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6 masqué : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "réouverture : détail et étapes toujours là",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "7. Démarrer : navigation active, feuille réduite",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "7. navigation démarrée : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=2511px, visible utilisateur=2511px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "7 : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=596, haut nav=603)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "8. on a bien quitté la carte",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "8. retour carte : panneau d'itinéraire restauré",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "8. retour sur la carte : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=31956px, visible utilisateur=12644px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "fermeture explicite (croix) : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "0. avant calcul : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "1-2. itinéraire calculé : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=11842px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "1 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "1 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "1 : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=771, haut nav=778)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "étapes affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "3-4. après « Masquer les étapes » : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=11842px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "5. étapes réaffichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "distance/durée toujours affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "5. étapes réaffichées : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=11842px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau réduit : résumé distance/durée visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau réduit : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=26230px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6 réduit : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6 réduit : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "6 réduit : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=771, haut nav=778)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau agrandi",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau agrandi : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=11842px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau masqué : pastille de réouverture visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. panneau MASQUÉ : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=26230px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6 masqué : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6 masqué : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "réouverture : détail et étapes toujours là",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "7. Démarrer : navigation active, feuille réduite",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "7. navigation démarrée : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=1746px, visible utilisateur=1746px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "7 : feuille ne chevauche pas la navigation basse",
+  "ok": true,
+  "detail": "(bas feuille=771, haut nav=778)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "8. on a bien quitté la carte",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "8. retour carte : panneau d'itinéraire restauré",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "8. retour sur la carte : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=26230px, visible utilisateur=11842px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "fermeture explicite (croix) : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "0. avant calcul : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "1-2. itinéraire calculé : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "1 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[1184, 831]"
+ },
+ {
+  "profile": "desktop",
+  "test": "1 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "étapes affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "3-4. après « Masquer les étapes » : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "5. étapes réaffichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "distance/durée toujours affichées",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "5. étapes réaffichées : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "6. panneau MASQUÉ : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "6 masqué : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[1184, 831]"
+ },
+ {
+  "profile": "desktop",
+  "test": "6 masqué : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "6. panneau réaffiché : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "7. Démarrer : navigation active",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "7. navigation démarrée : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "7 : canvas = conteneur, même instance de carte",
+  "ok": true,
+  "detail": "[1184, 831]"
+ },
+ {
+  "profile": "desktop",
+  "test": "7 : aucun débordement horizontal",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "8. on a bien quitté la carte",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "8. retour carte : panneau d'itinéraire restauré",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "8. retour sur la carte : ligne bleue visible",
+  "ok": true,
+  "detail": "(rendu=7366px, visible utilisateur=7366px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "fermeture explicite (croix) : ligne bleue absente",
+  "ok": true,
+  "detail": "(rendu=0px, visible utilisateur=0px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ }
+]

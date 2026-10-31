@@ -36,7 +36,15 @@ export function describeRouteFailure(kind: WalkingRouteErrorKind | 'campus_netwo
     case 'not_configured':
     case 'forbidden':
     case 'bad_request':
-      return { category: 'configuration', title: 'Erreur de configuration', retryable: false, hint: 'Ce n’est pas un problème de votre appareil : signalez-le à l’administration.' };
+      // Côté visiteur : aucun jargon, une piste d'action réelle (le départ « lieu du campus » utilise le
+      // réseau interne, indépendant du service externe). Le détail technique reste réservé aux administrateurs
+      // (voir userFacingRouteMessage).
+      return {
+        category: 'configuration',
+        title: 'Itinéraire pas encore disponible ici',
+        retryable: false,
+        hint: 'Ce n’est pas un problème de votre appareil. Choisissez un lieu du campus comme point de départ ci-dessous, ou revenez plus tard.',
+      };
     case 'no_route':
     case 'out_of_area':
     case 'too_far':
@@ -47,4 +55,19 @@ export function describeRouteFailure(kind: WalkingRouteErrorKind | 'campus_netwo
     default:
       return { category: 'generic', title: 'Itinéraire indisponible', retryable: true, hint: 'Réessayez ou choisissez un autre départ.' };
   }
+}
+
+/** Phrase affichée aux visiteurs pour un échec de configuration (le détail technique ne les concerne pas). */
+export const CONFIGURATION_FAILURE_PUBLIC_MESSAGE =
+  'Le calcul d’itinéraire depuis cette position n’est pas disponible pour le moment.';
+
+/**
+ * Message sous le titre de l'échec. Un échec de configuration (service non déployé, jeton ou origine refusés…)
+ * est un sujet d'administrateur : le visiteur reçoit une phrase claire, l'administrateur garde le message technique
+ * exact (et la piste de correction). Les autres catégories (réseau, indisponible, introuvable) sont déjà rédigées
+ * pour l'utilisateur et passent telles quelles.
+ */
+export function userFacingRouteMessage(view: RouteFailureView | null, technicalMessage: string, isAdmin: boolean): string {
+  if (!view || view.category !== 'configuration') return technicalMessage;
+  return isAdmin ? `${technicalMessage} (Administrateur : voir docs/ROUTING_PROXY.md.)` : CONFIGURATION_FAILURE_PUBLIC_MESSAGE;
 }
