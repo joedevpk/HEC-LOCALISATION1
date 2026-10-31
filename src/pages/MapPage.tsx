@@ -939,7 +939,10 @@ export function MapPage() {
     setExternalRouting(true);
     // Même destination : le dernier tracé valide reste visible pendant le calcul.
     // Autre destination : on l'efface, il ne doit jamais passer pour le nouveau.
-    if (decideOnRecompute(routeTagRef.current, selected.id, from) === 'clear') {
+    // Exception : le départ est la position GPS de l'utilisateur qui marche (même destination) — l'ancien tracé
+    // reste affiché le temps du recalcul (il est remplacé dès l'arrivée du nouveau, ou signalé en erreur).
+    const followingGps = originSourceRef.current === 'gps' && routeTagRef.current?.destId === selected.id;
+    if (!followingGps && decideOnRecompute(routeTagRef.current, selected.id, from) === 'clear') {
       setRouteResult(null);
       setRouteTag(null);
     }
@@ -1036,8 +1039,10 @@ export function MapPage() {
     ? describeRouteFailure(routeFailureKind(routeError, externalRouteKind, externalRouteNote))
     : null;
   const routeIsAdmin = isAdminRole(profile?.role) || import.meta.env.DEV;
-  // Réduire / masquer la feuille n'a de sens que lorsqu'un tracé réel est affiché.
-  const mobileRouteSheet = panelMode === 'route' && !!selected && !!origin && !!displayRoute && !routeError;
+  // Réduire / masquer la feuille dépend de l'ÉTAT D'AFFICHAGE d'un itinéraire en cours — pas de la présence
+  // instantanée du tracé : pendant un recalcul (déplacement GPS) le tracé peut être brièvement absent, et la
+  // feuille que l'utilisateur a masquée ne doit pas se rouvrir d'elle-même pour autant.
+  const mobileRouteSheet = panelMode === 'route' && !!selected && !!origin && !routeError;
   const mobileSheetMode: SheetState = mobileRouteSheet ? sheetState : 'expanded';
 
   const startRoute = useCallback(
@@ -1778,18 +1783,23 @@ export function MapPage() {
       )}
 
       {/* Feuille masquée : l'itinéraire reste tracé sur la carte ; une pastille permet de la rouvrir. */}
-      {mobileRouteSheet && mobileSheetMode === 'hidden' && displayRoute && (
+      {mobileRouteSheet && mobileSheetMode === 'hidden' && (
         <button
           type="button"
-          onClick={() => setSheetState('collapsed')}
-          aria-label="Afficher le panneau d'itinéraire"
+          onClick={() => setSheetState('expanded')}
+          aria-label="Afficher l'itinéraire"
           data-route-pill
           className="absolute bottom-3 left-3 right-[4.75rem] z-30 flex min-h-[48px] items-center gap-2 rounded-full border border-slate-200/70 bg-white/95 px-4 text-left shadow-panel focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100 lg:hidden"
         >
           <Navigation className="h-4 w-4 shrink-0 text-hec-500" />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-hec-950">
-            {formatDistance(displayRoute.distanceMeters)}
-            {typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''}
+          <span className="min-w-0 flex-1 py-1.5">
+            <span className="block truncate text-sm font-semibold text-hec-950">Afficher l’itinéraire</span>
+            {displayRoute && (
+              <span className="block truncate text-xs text-slate-500">
+                {formatDistance(displayRoute.distanceMeters)}
+                {typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''}
+              </span>
+            )}
           </span>
           <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" />
         </button>
@@ -1819,14 +1829,17 @@ export function MapPage() {
 
           {/* Résumé compact (feuille réduite) : distance / durée / étapes restent disponibles, le
               détail complet (RoutePanel) reste MONTÉ juste en dessous, simplement replié. */}
-          {mobileRouteSheet && mobileSheetMode === 'collapsed' && displayRoute && selected && (
+          {mobileRouteSheet && mobileSheetMode === 'collapsed' && selected && (
             <div className="px-4 pb-3" data-route-summary>
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-hec-950">{selected.name}</p>
                   <p className="text-xs text-slate-500">
-                    {formatDistance(displayRoute.distanceMeters)}
-                    {typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''}
+                    {displayRoute
+                      ? `${formatDistance(displayRoute.distanceMeters)}${
+                          typeof displayRoute.durationMinutes === 'number' ? ` · ≈ ${displayRoute.durationMinutes} min` : ''
+                        }`
+                      : 'Mise à jour de l’itinéraire…'}
                     {navigationActive ? ' · navigation en cours' : ''}
                   </p>
                 </div>
@@ -1913,6 +1926,8 @@ export function MapPage() {
                 onUseMyLocation={requestGeolocation}
                 originExtra={<OriginAddressSearch proximity={placeProximity} onConfirm={confirmAddressOrigin} />}
                 onStart={startNavigationMobile}
+                onCollapse={mobileRouteSheet ? () => setSheetState('collapsed') : undefined}
+                onHide={mobileRouteSheet ? () => setSheetState('hidden') : undefined}
                 navigationActive={navigationActive}
                 onStop={() => setNavigationActive(false)}
                 onRecenter={handleLocateClick}

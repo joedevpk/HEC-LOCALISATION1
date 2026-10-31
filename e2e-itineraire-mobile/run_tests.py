@@ -70,19 +70,18 @@ def run(p, profile, device):
 
     # 6. réduire / agrandir / masquer
     if mobile:
-        page.get_by_role("button", name="Réduire le panneau").click(); page.wait_for_timeout(500)
+        page.locator("[data-route-collapse]:visible").click(); page.wait_for_timeout(500)
         check(profile, "6. panneau réduit : résumé distance/durée visible", page.locator("[data-route-summary]").is_visible())
         px(page, profile, "6. panneau réduit", tag=f"{profile}_6_collapsed"); geo_ok(page, profile, "6 réduit")
         page.get_by_role("button", name="Agrandir le panneau").click(); page.wait_for_timeout(500)
-        check(profile, "6. panneau agrandi", page.get_by_role("button", name="Réduire le panneau").is_visible())
+        check(profile, "6. panneau agrandi", page.locator("[data-route-collapse]:visible").count() == 1)
         px(page, profile, "6. panneau agrandi")
-        page.get_by_role("button", name="Réduire le panneau").click(); page.wait_for_timeout(400)
+        page.locator("[data-route-collapse]:visible").click(); page.wait_for_timeout(400)
         page.get_by_role("button", name="Masquer le panneau").click(); page.wait_for_timeout(500)
         check(profile, "6. panneau masqué : pastille de réouverture visible", page.locator("[data-route-pill]").is_visible())
         px(page, profile, "6. panneau MASQUÉ", tag=f"{profile}_6_hidden"); geo_ok(page, profile, "6 masqué")
         page.screenshot(path=f"{OUT}/{profile}_6_hidden_ui.png")
-        page.locator("[data-route-pill]").click(); page.wait_for_timeout(400)
-        page.get_by_role("button", name="Afficher les étapes").click(); page.wait_for_timeout(500)
+        page.locator("[data-route-pill]").click(); page.wait_for_timeout(500)
         check(profile, "réouverture : détail et étapes toujours là", page.get_by_role("button", name="Masquer les étapes").is_visible())
     else:
         page.get_by_role("button", name="Masquer le panneau").click(); page.wait_for_timeout(700)
@@ -119,7 +118,9 @@ def run(p, profile, device):
     page.evaluate("document.querySelector('canvas.maplibregl-canvas').__mark='initial'")
 
     # fermeture explicite = seul geste qui termine l'itinéraire
-    page.get_by_role("button", name="Fermer l'itinéraire").first.click(); page.wait_for_timeout(1200)
+    if mobile: page.locator("[data-route-close]:visible").click()
+    else: page.get_by_role("button", name="Fermer l'itinéraire").first.click()
+    page.wait_for_timeout(1200)
     px(page, profile, "fermeture explicite (croix)", expect=False)
     check(profile, "aucune erreur JS", not errs, "; ".join(errs[:2]))
     b.close()

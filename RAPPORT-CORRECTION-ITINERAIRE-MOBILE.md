@@ -1,65 +1,68 @@
-# HEC Localisation — Correction : l'itinéraire disparaît sur mobile quand on masque le panneau
+# HEC Localisation — Masquer la feuille « Itinéraire » sur mobile sans perdre le tracé (passe 6)
 
-## 1. Cause exacte
-Sur mobile, la feuille basse n'offrait **aucun moyen non destructif de la masquer**. Son seul geste de fermeture
-(la croix, « Fermer l'itinéraire ») appelle `closePanel()` dans `MapPage.tsx`, qui efface `selected`, `origin` et
-`routeResult` ; la couche MapLibre est alimentée par `routeCoordinates={displayRoute?.coordinates}` et le tracé
-disparaît donc avec l'état. Sur ordinateur, le panneau a un état d'affichage séparé (`desktopPanelOpen`) qui ne
-touche pas à l'itinéraire : d'où la différence.
+## 0. Reconnaissance d'une erreur de ma passe précédente
+Le correctif annoncé « validé » (86 tests) ne corrigeait pas le geste réel de l'utilisateur. Mes tests n'avaient ni le trajet **externe** depuis
+une position hors campus, ni « Section Informatique », ni le geste « toucher la croix ». Je les avais validés sur un parcours campus interne,
+en utilisant des boutons que l'utilisateur ne voit pas. Ce rapport remplace le précédent.
 
-Éléments vérifiés et **hors de cause** : « Masquer les étapes » (état local de `RoutePanel`, n'affecte pas le tracé) ;
-source/couches GeoJSON (mises à jour par `setData`, jamais détruites par un changement d'affichage) ; instance de
-carte (créée une seule fois, vérifiée dans les tests) ; CSS/dimensions (feuille en overlay `absolute`, canvas = conteneur).
+## 1. Cause exacte (reproduite)
+Reproduit sur build de production, trajet externe, destination « Section Informatique » (`repro_x.py`, code précédent) :
+tracé calculé = 12 829 px de bleu → toucher la croix en haut à droite de la feuille → **0 px**.
+- La feuille déployée n'offrait qu'**une seule commande de sortie visible : la croix « Fermer l'itinéraire »**, qui appelle `closePanel()`
+  (`MapPage.tsx`) : efface `selected`, `routeResult`, l'erreur, la navigation, et le tracé avec.
+- Mon « Masquer » n'existait que dans l'état *réduit*, atteignable par la poignée (zone de 8 px, invisible comme bouton). L'utilisateur ne le voyait pas.
+- Desktop : le panneau a son propre bouton de masquage (`desktopPanelOpen`), séparé de l'itinéraire, d'où la différence.
 
-Reproduit avant correction (pixels réels, iPhone 13) : tracé 31 956 px → « Masquer les étapes » : inchangé → croix : **0 px**.
-Desktop : « Masquer le panneau » : tracé conservé.
+**Second défaut trouvé** : quand le GPS bouge de plus de 40 m (utilisateur qui marche), le recalcul effaçait l'ancien tracé le temps de la réponse
+du service, et l'état « masqué » de la feuille dépendait de la présence du tracé : la feuille se rouvrait seule et le tracé clignotait.
 
-## 2. Autres défauts trouvés (corrigés)
-- **« Démarrer » n'avait aucun effet visible** : `navigationActive` était activé mais jamais affiché ; la feuille restait ouverte sur la carte.
-- **Quitter l'onglet Carte puis revenir effaçait l'itinéraire** (état local de `MapPage` perdu au démontage).
-- Pas de redimensionnement/repaint du canvas au retour sur la page (iOS bfcache / retour d'app).
+Éléments hors de cause (vérifiés) : sources/couches GeoJSON (jamais détruites par un changement d'affichage), instance de carte (même canvas dans tous les
+états), dimensions du canvas, CSS, effets React du panneau, nombre d'appels au service (aucun recalcul au masquage).
 
-## 3. Fichiers modifiés
-- `src/pages/MapPage.tsx` — état `sheetState` (déployée / réduite / masquée), purement visuel ; poignée cliquable ; résumé compact
-  (nom, distance, durée, Démarrer/Arrêter) ; pastille de réouverture quand la feuille est masquée ; « Démarrer » réduit la feuille et recentre ;
-  mémorisation de la destination (`sessionStorage`) et restauration idempotente au retour sur la carte ; bannière POI remontée au-dessus de la pastille.
-- `src/components/RoutePanel.tsx` — props optionnelles `navigationActive` / `onStop` (bouton « Arrêter la navigation », message d'état). Rétro-compatible.
-- `src/components/CampusMap.tsx` — `map.resize()` + `triggerRepaint()` sur `visibilitychange` / `pageshow` (listeners nettoyés).
-- Ajout : `e2e-itineraire-mobile/` (banc de test réutilisable).
-La croix « Fermer l'itinéraire » reste le seul geste qui termine réellement un itinéraire. Rien n'est supprimé ; MapLibre, MapTiler, Supabase et le routage sont inchangés.
+## 2. Corrections
+Trois états **indépendants** de la feuille (`sheetState` : déployée / réduite / masquée), purement visuels ; destination, départ, `routeResult`, `displayRoute`,
+marqueurs, source GeoJSON, navigation ne sont jamais touchés par eux.
 
-## 4. Résultats de vérification (exécutés)
-- `tsc` OK · ESLint 0 erreur (5 avertissements préexistants) · Vitest 338/338 · build de production OK.
-- Banc e2e réel : **86/86** contrôles sur iPhone 13, Pixel 7 et desktop 1440×900 :
-  calcul d'itinéraire → ligne bleue visible → masquer/réafficher les étapes → réduire/agrandir/masquer le panneau (tracé visible à chaque état,
-  pastille de réouverture) → Démarrer (navigation active) → quitter la carte et revenir (itinéraire restauré, ligne bleue présente) →
-  fermeture explicite (tracé effacé, comportement voulu). Contrôles associés : canvas = conteneur, même instance de carte, aucun débordement
-  horizontal, feuille sans chevauchement avec la navigation basse, aucune erreur JS.
+| Commande | Effet | Où |
+|---|---|---|
+| Réduire (chevron ⌄) | résumé compact : destination, distance, durée, Démarrer | en-tête de la feuille |
+| Masquer (œil barré) | cache **uniquement** le panneau | en-tête de la feuille / barre réduite |
+| Afficher l'itinéraire | rouvre le panneau existant | bouton flottant, au-dessus de la navigation basse (distance/durée en 2ᵉ ligne) |
+| Arrêter la navigation | arrête le mode navigation, **ne** supprime **pas** le trajet | panneau / barre réduite |
+| Fermer l'itinéraire (explicite) | **seul** geste destructif : efface trajet et marqueurs | bouton étiqueté en bas du panneau |
 
-## 5. Limites (à dire honnêtement)
-- Émulation Chromium d'iPhone 13 / Pixel 7, **pas** de vrais appareils iOS Safari / Android Chrome : un passage rapide sur téléphones réels reste conseillé.
-- Fond de carte et Supabase simulés (pas de tuiles MapTiler réelles, pas de vraie base) ; le routage, MapLibre et l'UI sont réels.
-- Après « Démarrer », la carte se recentre sur la position (zoom rapproché) : le tracé reste affiché mais seule une partie est dans l'écran. Il n'y a pas de guidage pas-à-pas (non implémenté dans le projet, non ajouté).
-- Observé, non traité (hors périmètre) : l'épingle rouge de destination apparaît décalée du point d'arrivée, sur mobile **et** desktop.
+La croix destructive de l'en-tête **n'existe plus** sur la feuille mobile : un geste rapide ne peut plus effacer l'itinéraire.
 
----
-## Addendum — Message d'échec du service d'itinéraire (capture de production)
+## 3. Fichiers et fonctions modifiés
+- `src/components/RoutePanel.tsx` — props optionnelles `onCollapse`, `onHide` (en-tête non destructif) ; bouton « Fermer l'itinéraire » explicite ;
+  `navigationActive` / `onStop` (« Arrêter la navigation »). Sans ces props, comportement identique à avant (desktop inchangé).
+- `src/pages/MapPage.tsx` — `sheetState`/`mobileSheetMode` indépendants de la présence du tracé ; résumé compact ; bouton flottant « Afficher l'itinéraire » ;
+  `startNavigationMobile` ; conservation de l'ancien tracé pendant un recalcul dû au GPS (même destination) ; mémorisation et restauration idempotente de la
+  destination au retour sur la carte (`sessionStorage`) ; bannière de lieux publics remontée au-dessus du bouton.
+- `src/components/CampusMap.tsx` — `map.resize()` + `triggerRepaint()` à `visibilitychange`/`pageshow` (écouteurs nettoyés ; aucune donnée détruite).
+- `src/lib/route-failure.ts` (+ tests) — message d'échec du service d'itinéraire lisible par un visiteur, détail technique réservé aux administrateurs.
+- Ajout : `e2e-itineraire-mobile/`.
+Aucun changement : MapLibre, MapTiler, fournisseur de routage, Edge Functions, migrations SQL.
 
-**Constat (capture `localisationhec.onrender.com`)** : « Erreur de configuration — Service d'itinéraire introuvable (fonction non déployée ?) ».
-C'est un 404 sur `<VITE_SUPABASE_URL>/functions/v1/route-walking` : la fonction Edge `route-walking` n'est pas déployée sur le projet Supabase
-(étapes dans `docs/ROUTING_PROXY.md`). Ce n'est pas le bug d'affichage corrigé plus haut, et ce n'est pas réparable dans le code : c'est un déploiement à faire.
+## 4. Tests exécutés (résultats réels)
+**Scénario de production** (`run_prod_scenario.py`, build Vite, service externe simulé en succès, GPS hors campus, recherche « Section Informatique ») — **83/83** sur iPhone 13, Pixel 7, desktop 1440×900 :
+1 ouverture · 2 géolocalisation · 3 destination · 4 calcul externe (1 seul appel) · 5 tracé bleu · 6 masquer · 7 tracé visible, aucun nouvel appel, bouton « Afficher l'itinéraire » visible,
+dans l'écran, sans chevaucher la navigation · 7b GPS qui bouge de ~90 m feuille masquée : tracé jamais absent, feuille reste masquée, recalcul unique · 8 rouvrir · 9 réduire/agrandir ·
+10 Démarrer · 11 masquer/rouvrir en navigation, navigation conservée · Arrêter la navigation : trajet conservé · 12 quitter la carte · 13 retour : itinéraire restauré, tracé présent ·
+14 fermeture définitive : le tracé disparaît **uniquement** là. Contrôles associés : même instance de carte, canvas = conteneur, pas de débordement horizontal, aucune erreur JS.
+Autres : parcours campus interne en serveur de dev **86/86** · échec du service (404/503) en visiteur **6/6** · Vitest **345/345** · tsc OK · ESLint 0 erreur (5 avertissements préexistants) · build de production OK.
 
-**Amélioration apportée (côté visiteur)** — `src/lib/route-failure.ts`, `src/pages/MapPage.tsx` :
-- Titre « Itinéraire pas encore disponible ici » (au lieu de « Erreur de configuration »).
-- Plus de jargon pour le visiteur : le texte technique (« fonction non déployée ? », jeton, origine…) n'est montré qu'aux **administrateurs**
-  (avec renvoi vers `docs/ROUTING_PROXY.md`).
-- Piste d'action réelle : « Choisissez un lieu du campus comme point de départ ci-dessous, ou revenez plus tard » — vérifiée : ce départ calcule bien
-  l'itinéraire sur le réseau interne et le tracé bleu s'affiche.
-- Invariants conservés : une erreur de configuration n'est jamais présentée comme « réseau » ni « réessayable » ; les autres échecs (réseau, indisponible,
-  introuvable) ne sont pas réécrits ; aucun tracé fictif.
+## 5. Limites (à lire)
+- **Chromium uniquement** (émulation iPhone 13 / Pixel 7). WebKit/Safari iOS n'est pas installable ici : le comportement Safari réel (barre d'adresse dynamique, bfcache, GPS) n'est pas prouvé. **Test indispensable sur votre iPhone après déploiement.**
+- Service d'itinéraire, Supabase et fond de carte **simulés** (aucune clé OpenRouteService ni tuile réelle) ; les coordonnées de test sont fictives, **uniquement** dans le banc de test, jamais dans l'application.
+- À l'ouverture d'un trajet, la feuille déployée recouvre une partie du tracé (cadrage inchangé) ; il apparaît en entier en masquant la feuille. Non modifié.
+- Après « Démarrer », la carte se recentre sur la position (zoom rapproché) ; pas de guidage pas à pas dans le projet.
+- Observé, non traité : l'épingle rouge de destination apparaît décalée du point d'arrivée (mobile et desktop, existait avant).
 
-**Vérification** : Vitest 345/345 (7 tests ajoutés) · tsc OK · ESLint 0 erreur · e2e précédent 86/86 (non-régression) ·
-nouveau test navigateur sur **build de production**, service simulé en 404 puis 503 : 6/6 (`e2e-itineraire-mobile/run_service_errors.py`).
-
-**Toujours à faire par vous** : déployer `route-walking` (secrets `ORS_API_KEY`, `ALLOWED_ORIGINS`), puis tester un vrai trajet hors réseau interne
-sur téléphone. Le chemin « service externe en succès » n'a pas pu être testé ici (clé ORS réelle requise).
+## 6. Redéployer sur Render
+1. Remplacer le code par ce zip (commit + push sur la branche suivie par Render ; déploiement auto) ou, depuis Render : **Manual Deploy → Clear build cache & deploy**.
+2. Aucune variable d'environnement nouvelle. Les `VITE_*` sont lues à la construction : si vous les changez, relancez un déploiement.
+3. **Cache PWA** : l'application a un service worker (mise à jour automatique, appliquée au rechargement). Sur l'iPhone : fermer complètement l'onglet, rouvrir la page, **recharger deux fois**.
+   En cas de doute : Réglages → Safari → Avancé → Données de sites web → supprimer `localisationhec.onrender.com`.
+4. Vérifier que la nouvelle version tourne : dans la feuille « Itinéraire », l'en-tête doit montrer **deux icônes (⌄ et œil barré)** et **plus de croix** ; un bouton « Fermer l'itinéraire » doit apparaître **en bas** du panneau.
+5. Itinéraire hors réseau interne : la fonction Edge `route-walking` doit être déployée (`docs/ROUTING_PROXY.md`) — déjà le cas dans votre capture (trajet openrouteservice affiché).

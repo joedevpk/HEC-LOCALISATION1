@@ -28,6 +28,7 @@ def loc(id, name, lng, lat, b):
             "category": "entrance", "description": "Point de test", "capacity": None, "lng": lng, "lat": lat,
             "is_accessible": True, "archived_at": None, "building": None, "floor": None}
 LOCATIONS = [loc("loc-a", "Entrée Bloc A", 15.3000, -4.3800, "b1"),
+             {**loc("loc-info", "Section Informatique", 15.3008, -4.3804, "b2"), "kind": "department", "category": "department", "description": "Section Informatique"},
              loc("loc-lib", "Entrée Bibliothèque", 15.3008, -4.3804, "b2")]
 NODES = [{"id": f"n{i}", "campus_id": "c1", "lng": x, "lat": y, "type": "intersection", "label": None, "accessible": True, "archived_at": None}
          for i, (x, y) in enumerate([(15.3000, -4.3800), (15.3004, -4.3800), (15.3004, -4.3804), (15.3008, -4.3804)], 1)]
@@ -101,3 +102,38 @@ def blue_pixels(page, tag=None):
     return total, vis
 
 LAUNCH = dict(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--enable-webgl"])
+
+
+# ---- Scénario de production : trajet EXTERNE (hors réseau du campus), service d'itinéraire en succès ----
+ORS_LINE = [[15.3100, -4.3900], [15.3085, -4.3890], [15.3060, -4.3880], [15.3040, -4.3865], [15.3025, -4.3850],
+            [15.3015, -4.3830], [15.3010, -4.3815], [15.3008, -4.3804]]
+ORS_OK = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "LineString", "coordinates": ORS_LINE},
+          "properties": {"summary": {"distance": 2310.0, "duration": 1664.0},
+                         "segments": [{"steps": [{"instruction": "Marchez vers le nord-ouest"}, {"instruction": "Tournez à droite"}, {"instruction": "Vous êtes arrivé"}]}]}}]}
+
+def build_and_preview(extra_env=None, dist="/tmp/dist_prod"):
+    import shutil
+    env = dict(os.environ, VITE_SUPABASE_URL=BASE, VITE_SUPABASE_ANON_KEY="test-anon-key", VITE_MAP_PROVIDER="custom",
+               VITE_MAP_STYLE_URL=f"{BASE}/__test/style.json", VITE_ROUTING_PROVIDER="proxy", **(extra_env or {}))
+    shutil.rmtree(dist, ignore_errors=True)
+    r = subprocess.run(["npx", "vite", "build", "--outDir", dist], cwd=PROJECT, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[-600:]
+    prev = subprocess.Popen(["npx", "vite", "preview", "--outDir", dist, "--port", str(PORT), "--strictPort", "--host", "127.0.0.1"],
+                            cwd=PROJECT, env=env, stdout=open("/tmp/preview.log", "w"), stderr=subprocess.STDOUT)
+    for _ in range(60):
+        try: urllib.request.urlopen(BASE, timeout=1); return prev
+        except Exception: time.sleep(0.5)
+    raise RuntimeError("preview n'a pas démarré")
+
+def prod_context(p, device, counters=None):
+    """Contexte proche de la production : service worker bloqué, GPS HORS campus, route-walking en succès (compté)."""
+    b = p.chromium.launch(**LAUNCH)
+    kw = p.devices[device] if device else dict(viewport={"width": 1440, "height": 900})
+    ctx = b.new_context(**kw, service_workers="block",
+                        geolocation={"latitude": -4.3900, "longitude": 15.3100, "accuracy": 12}, permissions=["geolocation"])
+    install_mocks(ctx)
+    def ors(route):
+        if counters is not None: counters["ors"] = counters.get("ors", 0) + 1
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(ORS_OK))
+    ctx.route("**/functions/v1/route-walking", ors)
+    return b, ctx

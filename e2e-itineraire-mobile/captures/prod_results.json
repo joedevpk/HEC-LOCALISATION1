@@ -1,0 +1,500 @@
+[
+ {
+  "profile": "iphone13",
+  "test": "4. calcul par le service externe (position hors campus)",
+  "ok": true,
+  "detail": "(appels=1)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "5. trajet calculé : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=2543px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "5 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "5 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "en-tête de la feuille : uniquement Réduire / Masquer (aucune croix destructive)",
+  "ok": true,
+  "detail": "[\"Réduire le panneau d'itinéraire\", \"Masquer le panneau (l'itinéraire reste sur la carte)\"]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "6. feuille masquée, bouton « Afficher l'itinéraire » visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "7. feuille MASQUÉE : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=12673px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7 : bouton « Afficher l'itinéraire » au-dessus de la navigation basse, dans l'écran",
+  "ok": true,
+  "detail": "(bas bouton=584, haut nav=603)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7. aucun nouveau calcul au masquage",
+  "ok": true,
+  "detail": "(appels=1)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7b. GPS qui bouge, juste après (recalcul en cours) : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=12673px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "7b. feuille toujours masquée après le recalcul",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "7b. après le recalcul : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=12673px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "8. panneau rouvert (même panneau, étapes disponibles)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "8. panneau rouvert : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=2543px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "9. réduit : résumé destination + distance + durée",
+  "ok": true,
+  "detail": "Section Informatique |  | 1.6 km · ≈ 28 min |  | Démarrer"
+ },
+ {
+  "profile": "iphone13",
+  "test": "9. panneau réduit : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=12673px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "9 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "9 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "9. agrandi",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "9. panneau agrandi : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=2543px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "10. navigation démarrée (feuille réduite, état affiché)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "10. navigation active : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=10843px, visible=10843px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "10 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[390, 596]"
+ },
+ {
+  "profile": "iphone13",
+  "test": "10 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "11. masqué pendant la navigation : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=10843px, visible=10843px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "11. rouvert : navigation toujours active",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "« Arrêter la navigation » : navigation arrêtée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "« Arrêter la navigation » n'efface pas le trajet (tracé toujours rendu, feuille ouverte par-dessus)",
+  "ok": true,
+  "detail": "(rendu=10843px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "après Arrêter + masquage : tracé visible sur la carte : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=10843px, visible=10843px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "12. carte quittée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "13. retour : itinéraire restauré (destination « Section Informatique »)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "iphone13",
+  "test": "13. retour sur la carte : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=12829px, visible=2543px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "14. fermeture définitive (seul moment où le tracé disparaît) : tracé bleu ABSENT",
+  "ok": true,
+  "detail": "(rendu=0px, visible=0px)"
+ },
+ {
+  "profile": "iphone13",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "4. calcul par le service externe (position hors campus)",
+  "ok": true,
+  "detail": "(appels=1)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "5. trajet calculé : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=4659px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "5 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "5 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "en-tête de la feuille : uniquement Réduire / Masquer (aucune croix destructive)",
+  "ok": true,
+  "detail": "[\"Réduire le panneau d'itinéraire\", \"Masquer le panneau (l'itinéraire reste sur la carte)\"]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "6. feuille masquée, bouton « Afficher l'itinéraire » visible",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "7. feuille MASQUÉE : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=14767px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7 : bouton « Afficher l'itinéraire » au-dessus de la navigation basse, dans l'écran",
+  "ok": true,
+  "detail": "(bas bouton=759, haut nav=778)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7. aucun nouveau calcul au masquage",
+  "ok": true,
+  "detail": "(appels=1)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7b. GPS qui bouge, juste après (recalcul en cours) : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=14767px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "7b. feuille toujours masquée après le recalcul",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "7b. après le recalcul : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=14767px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "8. panneau rouvert (même panneau, étapes disponibles)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "8. panneau rouvert : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=4659px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "9. réduit : résumé destination + distance + durée",
+  "ok": true,
+  "detail": "Section Informatique |  | 1.6 km · ≈ 28 min |  | Démarrer"
+ },
+ {
+  "profile": "pixel7",
+  "test": "9. panneau réduit : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=14767px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "9 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "9 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "9. agrandi",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "9. panneau agrandi : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=4659px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "10. navigation démarrée (feuille réduite, état affiché)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "10. navigation active : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=8283px, visible=8283px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "10 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[412, 771]"
+ },
+ {
+  "profile": "pixel7",
+  "test": "10 : feuille sans chevauchement de la navigation",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "11. masqué pendant la navigation : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=8283px, visible=8283px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "11. rouvert : navigation toujours active",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "« Arrêter la navigation » : navigation arrêtée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "« Arrêter la navigation » n'efface pas le trajet (tracé toujours rendu, feuille ouverte par-dessus)",
+  "ok": true,
+  "detail": "(rendu=8283px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "après Arrêter + masquage : tracé visible sur la carte : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=8283px, visible=8283px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "12. carte quittée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "13. retour : itinéraire restauré (destination « Section Informatique »)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "pixel7",
+  "test": "13. retour sur la carte : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=14903px, visible=4659px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "14. fermeture définitive (seul moment où le tracé disparaît) : tracé bleu ABSENT",
+  "ok": true,
+  "detail": "(rendu=0px, visible=0px)"
+ },
+ {
+  "profile": "pixel7",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "4. calcul par le service externe (position hors campus)",
+  "ok": true,
+  "detail": "(appels=1)"
+ },
+ {
+  "profile": "desktop",
+  "test": "5. trajet calculé : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "5 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[1184, 831]"
+ },
+ {
+  "profile": "desktop",
+  "test": "7. panneau MASQUÉ : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "7 : canvas = conteneur, MÊME instance de carte, pas de débordement",
+  "ok": true,
+  "detail": "[1184, 831]"
+ },
+ {
+  "profile": "desktop",
+  "test": "8. panneau réaffiché : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "10. navigation active : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "« Arrêter la navigation » n'efface pas le trajet : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "12. carte quittée",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "13. retour : itinéraire restauré (destination « Section Informatique »)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "profile": "desktop",
+  "test": "13. retour sur la carte : tracé bleu visible",
+  "ok": true,
+  "detail": "(rendu=4741px, visible=4741px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "14. fermeture définitive (seul moment où le tracé disparaît) : tracé bleu ABSENT",
+  "ok": true,
+  "detail": "(rendu=0px, visible=0px)"
+ },
+ {
+  "profile": "desktop",
+  "test": "aucune erreur JS",
+  "ok": true,
+  "detail": ""
+ }
+]

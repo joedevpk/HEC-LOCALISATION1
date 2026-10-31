@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Clock,
+  EyeOff,
   Footprints,
   LocateFixed,
   Loader2,
@@ -49,6 +50,8 @@ export function RoutePanel({
   navigation = null,
   navigationActive = false,
   onStop,
+  onCollapse,
+  onHide,
   warning = null,
   originExtra = null,
 }: {
@@ -84,6 +87,14 @@ export function RoutePanel({
   navigationActive?: boolean;
   /** « Arrêter » — remplace « Démarrer » tant que `navigationActive` est vrai. */
   onStop?: () => void;
+  /**
+   * Feuille mobile : « Réduire » (résumé compact). NON destructif — ne touche pas à l'itinéraire.
+   * Fournie avec `onHide`, elle remplace la croix de l'en-tête par ces deux commandes ; la fermeture
+   * définitive devient alors un bouton explicite « Fermer l'itinéraire » en bas du panneau.
+   */
+  onCollapse?: () => void;
+  /** Feuille mobile : « Masquer » le panneau seul. NON destructif — le tracé et la destination restent. */
+  onHide?: () => void;
   /**
    * État réel de navigation active, fourni par l'appelant s'il en dispose
    * déjà (position courante suivie, étape en cours). Ne jamais simuler
@@ -126,13 +137,40 @@ export function RoutePanel({
           <RouteIcon className="h-5 w-5" />
           <span className="font-display font-bold text-hec-950">Itinéraire</span>
         </div>
-        <button
-          onClick={onClose}
-          className="-mr-1 grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
-          aria-label="Fermer l'itinéraire"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {onHide ? (
+          // Commandes de l'en-tête de la feuille mobile : toutes NON destructives. Un geste rapide « pour
+          // se débarrasser de la feuille » ne doit jamais effacer l'itinéraire.
+          <div className="-mr-1 flex items-center gap-1">
+            {onCollapse && (
+              <button
+                type="button"
+                onClick={onCollapse}
+                aria-label="Réduire le panneau d'itinéraire"
+                data-route-collapse
+                className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+              >
+                <ChevronDown className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onHide}
+              aria-label="Masquer le panneau (l'itinéraire reste sur la carte)"
+              data-route-hide
+              className="grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+            >
+              <EyeOff className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onClose}
+            className="-mr-1 grid h-11 w-11 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-hec-100"
+            aria-label="Fermer l'itinéraire"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-hec-100 bg-hec-50/60 px-3 py-2.5">
@@ -438,6 +476,20 @@ export function RoutePanel({
             </div>
           )}
         </>
+      )}
+
+      {/* Fermeture DÉFINITIVE : seul geste qui efface l'itinéraire et ses marqueurs. Distinct de Réduire / Masquer. */}
+      {onHide && (
+        <button
+          type="button"
+          onClick={onClose}
+          data-route-close
+          aria-label="Fermer définitivement l'itinéraire"
+          className="mt-4 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
+        >
+          <X className="h-4 w-4" />
+          Fermer l'itinéraire
+        </button>
       )}
     </div>
   );
